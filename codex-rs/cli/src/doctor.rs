@@ -1374,10 +1374,10 @@ fn stored_auth_issues(
         codex_app_server_protocol::AuthMode::AgentIdentity => {
             if auth
                 .agent_identity
-                .as_deref()
-                .is_none_or(|token| token.trim().is_empty())
+                .as_ref()
+                .is_none_or(|agent_identity| !agent_identity.has_auth_material())
             {
-                issues.push("agent identity auth is missing an agent identity token");
+                issues.push("agent identity auth is missing agent identity material");
             }
         }
     }
