@@ -708,7 +708,7 @@ jobs:
           tool: nextest
           version: 0.9.103
       - name: Download nextest archive
-        uses: actions/download-artifact@v7.0.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: nextest-archive-${{ env.TEST_TARGET }}
           path: ${{ runner.temp }}/nextest-archive
