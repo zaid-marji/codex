@@ -2344,6 +2344,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "codex-cloud-config"
+version = "0.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "codex-backend-client",
+ "codex-config",
+ "codex-core",
+ "codex-login",
+ "codex-otel",
+ "codex-protocol",
+ "hmac 0.12.1",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "codex-cloud-requirements"
 version = "0.0.0"
 dependencies = [
