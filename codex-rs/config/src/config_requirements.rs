@@ -25,7 +25,6 @@ use crate::permissions_toml::PermissionProfileToml;
 pub enum RequirementSource {
     Unknown,
     MdmManagedPreferences { domain: String, key: String },
-    CloudRequirements,
     Composite { sources: Vec<RequirementSource> },
     EnterpriseManaged { id: String, name: String },
     SystemRequirementsToml { file: AbsolutePathBuf },
@@ -69,9 +68,6 @@ impl fmt::Display for RequirementSource {
             RequirementSource::Unknown => write!(f, "<unspecified>"),
             RequirementSource::MdmManagedPreferences { domain, key } => {
                 write!(f, "MDM {domain}:{key}")
-            }
-            RequirementSource::CloudRequirements => {
-                write!(f, "cloud requirements")
             }
             RequirementSource::Composite { sources } => {
                 write!(f, "requirements composition: ")?;

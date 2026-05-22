@@ -36,6 +36,16 @@ fn cwd() -> AbsolutePathBuf {
     AbsolutePathBuf::current_dir().expect("current dir")
 }
 
+fn composite_requirement_source() -> RequirementSource {
+    RequirementSource::composite([
+        RequirementSource::MdmManagedPreferences {
+            domain: "com.openai.codex".to_string(),
+            key: "requirements_toml_base64".to_string(),
+        },
+        RequirementSource::LegacyManagedConfigTomlFromMdm,
+    ])
+}
+
 fn managed_hooks_for_current_platform(
     managed_dir: impl AsRef<Path>,
     hooks: HookEventsToml,
@@ -120,12 +130,12 @@ fn requirements_with_managed_hooks_only(
         ConfigRequirements {
             allow_managed_hooks_only: Some(Sourced::new(
                 allow_managed_hooks_only,
-                RequirementSource::CloudRequirements,
+                composite_requirement_source(),
             )),
             managed_hooks: managed_hooks.clone().map(|hooks| {
                 ConstrainedWithSource::new(
                     Constrained::allow_any(hooks),
-                    Some(RequirementSource::CloudRequirements),
+                    Some(composite_requirement_source()),
                 )
             }),
             ..ConfigRequirements::default()
@@ -183,7 +193,7 @@ with Path(r"{log_path}").open("a", encoding="utf-8") as handle:
         ConfigRequirements {
             managed_hooks: Some(ConstrainedWithSource::new(
                 Constrained::allow_any(managed_hooks.clone()),
-                Some(RequirementSource::CloudRequirements),
+                Some(composite_requirement_source()),
             )),
             ..ConfigRequirements::default()
         },
@@ -286,7 +296,7 @@ async fn requirements_managed_hooks_execute_windows_command_override() {
         ConfigRequirements {
             managed_hooks: Some(ConstrainedWithSource::new(
                 Constrained::allow_any(managed_hooks.clone()),
-                Some(RequirementSource::CloudRequirements),
+                Some(composite_requirement_source()),
             )),
             ..ConfigRequirements::default()
         },
@@ -447,7 +457,7 @@ fn user_disablement_filters_non_managed_hooks_but_not_managed_hooks() {
         ConfigRequirements {
             managed_hooks: Some(ConstrainedWithSource::new(
                 Constrained::allow_any(managed_hooks.clone()),
-                Some(RequirementSource::CloudRequirements),
+                Some(composite_requirement_source()),
             )),
             ..ConfigRequirements::default()
         },
@@ -671,7 +681,7 @@ fn requirements_managed_hooks_load_when_managed_dir_is_missing() {
         ConfigRequirements {
             managed_hooks: Some(ConstrainedWithSource::new(
                 Constrained::allow_any(managed_hooks.clone()),
-                Some(RequirementSource::CloudRequirements),
+                Some(composite_requirement_source()),
             )),
             ..ConfigRequirements::default()
         },

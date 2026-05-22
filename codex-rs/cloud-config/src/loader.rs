@@ -129,7 +129,7 @@ fn validate_bundle(
 /// Fetches the raw cloud config bundle for an authenticated Codex account.
 ///
 /// Implementations should return the backend-selected bundle exactly as delivered and leave
-/// config/requirements TOML parsing to the config crate's typed composition layer.
+/// config and requirements TOML parsing to the config crate's typed composition layer.
 trait BundleFetcher: Send + Sync {
     fn fetch_bundle(
         &self,

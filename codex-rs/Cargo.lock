@@ -1913,7 +1913,7 @@ dependencies = [
  "codex-arg0",
  "codex-backend-client",
  "codex-chatgpt",
- "codex-cloud-requirements",
+ "codex-cloud-config",
  "codex-config",
  "codex-core",
  "codex-core-plugins",
@@ -2367,32 +2367,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "codex-cloud-requirements"
-version = "0.0.0"
-dependencies = [
- "async-trait",
- "base64 0.22.1",
- "chrono",
- "codex-backend-client",
- "codex-config",
- "codex-core",
- "codex-login",
- "codex-otel",
- "codex-protocol",
- "codex-utils-absolute-path",
- "hmac 0.12.1",
- "pretty_assertions",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "toml 0.9.11+spec-1.1.0",
- "tracing",
-]
-
-[[package]]
 name = "codex-cloud-tasks"
 version = "0.0.0"
 dependencies = [
@@ -2765,7 +2739,7 @@ dependencies = [
  "codex-app-server-protocol",
  "codex-apply-patch",
  "codex-arg0",
- "codex-cloud-requirements",
+ "codex-cloud-config",
  "codex-config",
  "codex-core",
  "codex-feedback",
@@ -3864,7 +3838,7 @@ dependencies = [
  "codex-app-server-protocol",
  "codex-arg0",
  "codex-cli",
- "codex-cloud-requirements",
+ "codex-cloud-config",
  "codex-config",
  "codex-connectors",
  "codex-core-plugins",

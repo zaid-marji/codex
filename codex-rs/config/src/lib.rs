@@ -1,6 +1,5 @@
 mod cloud_config_bundle;
 mod cloud_config_layers;
-mod cloud_requirements;
 mod config_requirements;
 pub mod config_toml;
 mod constraint;
@@ -25,6 +24,8 @@ pub mod schema;
 mod skills_config;
 mod state;
 mod strict_config;
+#[doc(hidden)]
+pub mod test_support;
 mod thread_config;
 mod tui_keymap;
 pub mod types;
@@ -43,9 +44,6 @@ pub use cloud_config_layers::CloudConfigFragment;
 pub use cloud_config_layers::CloudConfigFragmentSource;
 pub use cloud_config_layers::CloudConfigLayerError;
 pub use cloud_config_layers::cloud_config_layers_from_fragments;
-pub use cloud_requirements::CloudRequirementsLoadError;
-pub use cloud_requirements::CloudRequirementsLoadErrorCode;
-pub use cloud_requirements::CloudRequirementsLoader;
 pub use codex_app_server_protocol::ConfigLayerSource;
 pub use codex_protocol::config_types::ProfileV2Name;
 pub use codex_protocol::config_types::ProfileV2NameParseError;

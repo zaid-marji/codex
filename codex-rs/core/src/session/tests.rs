@@ -180,6 +180,16 @@ use std::time::Duration as StdDuration;
 
 mod guardian_tests;
 
+fn composite_requirement_source() -> RequirementSource {
+    RequirementSource::composite([
+        RequirementSource::MdmManagedPreferences {
+            domain: "com.openai.codex".to_string(),
+            key: "requirements_toml_base64".to_string(),
+        },
+        RequirementSource::LegacyManagedConfigTomlFromMdm,
+    ])
+}
+
 struct InstructionsTestCase {
     slug: &'static str,
     expects_apply_patch_description: bool,
@@ -1034,7 +1044,7 @@ async fn danger_full_access_tool_attempts_do_not_enforce_managed_network() -> an
                 enabled: Some(true),
                 ..Default::default()
             },
-            RequirementSource::CloudRequirements,
+            composite_requirement_source(),
         ));
         let mut requirements_toml = config.config_layer_stack.requirements_toml().clone();
         requirements_toml.network = Some(codex_config::NetworkRequirementsToml {
@@ -6757,7 +6767,7 @@ async fn build_settings_update_items_emits_environment_item_for_network_changes(
             }),
             ..Default::default()
         },
-        RequirementSource::CloudRequirements,
+        composite_requirement_source(),
     ));
     let layers = config
         .config_layer_stack
