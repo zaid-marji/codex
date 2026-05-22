@@ -1086,6 +1086,9 @@ impl MessageProcessor {
             ClientRequest::ThreadRead { params, .. } => {
                 self.thread_processor.thread_read(params).await
             }
+            ClientRequest::ThreadSuggestNextPrompt { params, .. } => {
+                self.turn_processor.thread_suggest_next_prompt(params).await
+            }
             ClientRequest::ThreadTurnsList { params, .. } => {
                 self.thread_processor.thread_turns_list(params).await
             }
