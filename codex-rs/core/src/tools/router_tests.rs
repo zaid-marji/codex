@@ -7,11 +7,11 @@ use crate::turn_diff_tracker::TurnDiffTracker;
 use codex_extension_api::ExtensionData;
 use codex_extension_api::ExtensionRegistry;
 use codex_extension_api::ExtensionRegistryBuilder;
-use codex_extension_api::ExtensionToolExecutor;
 use codex_extension_api::ResponsesApiTool;
 use codex_extension_api::ToolCall as ExtensionToolCall;
 use codex_extension_api::ToolExecutor;
 use codex_protocol::dynamic_tools::DynamicToolSpec;
+use codex_protocol::models::ContentItem;
 use codex_protocol::models::FunctionCallOutputBody;
 use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
@@ -37,7 +37,7 @@ impl codex_extension_api::ToolContributor for ExtensionEchoContributor {
         &self,
         _session_store: &ExtensionData,
         _thread_store: &ExtensionData,
-    ) -> Vec<Arc<dyn ExtensionToolExecutor>> {
+    ) -> Vec<Arc<dyn ToolExecutor<ExtensionToolCall>>> {
         vec![Arc::new(ExtensionEchoExecutor)]
     }
 }
@@ -46,14 +46,12 @@ struct ExtensionEchoExecutor;
 
 #[async_trait::async_trait]
 impl ToolExecutor<ExtensionToolCall> for ExtensionEchoExecutor {
-    type Output = codex_tools::JsonToolOutput;
-
     fn tool_name(&self) -> ToolName {
         ToolName::namespaced("extension/", "echo")
     }
 
-    fn spec(&self) -> Option<ToolSpec> {
-        Some(ToolSpec::Namespace(ResponsesApiNamespace {
+    fn spec(&self) -> ToolSpec {
+        ToolSpec::Namespace(ResponsesApiNamespace {
             name: "extension/".to_string(),
             description: default_namespace_description("extension/"),
             tools: vec![ResponsesApiNamespaceTool::Function(ResponsesApiTool {
@@ -72,20 +70,21 @@ impl ToolExecutor<ExtensionToolCall> for ExtensionEchoExecutor {
                 output_schema: None,
                 defer_loading: None,
             })],
-        }))
+        })
     }
 
     async fn handle(
         &self,
         call: ExtensionToolCall,
-    ) -> Result<Self::Output, codex_tools::FunctionCallError> {
+    ) -> Result<Box<dyn codex_tools::ToolOutput>, codex_tools::FunctionCallError> {
         let arguments: serde_json::Value =
             serde_json::from_str(call.function_arguments()?).expect("test arguments should parse");
-        Ok(codex_tools::JsonToolOutput::new(json!({
+        Ok(Box::new(codex_tools::JsonToolOutput::new(json!({
             "arguments": arguments,
             "callId": call.call_id,
+            "conversationHistory": call.conversation_history.items(),
             "ok": true,
-        })))
+        }))))
     }
 }
 
@@ -109,8 +108,8 @@ async fn parallel_support_does_not_match_namespaced_local_tool_names() -> anyhow
         .await
         .list_all_tools()
         .await;
-    let router = ToolRouter::from_config(
-        &turn.tools_config,
+    let router = ToolRouter::from_turn_context(
+        &turn,
         ToolRouterParams {
             deferred_mcp_tools: None,
             mcp_tools: Some(mcp_tools),
@@ -175,8 +174,8 @@ async fn build_tool_call_uses_namespace_for_registry_name() -> anyhow::Result<()
 #[tokio::test]
 async fn mcp_parallel_support_uses_handler_data() -> anyhow::Result<()> {
     let (_, turn) = make_session_and_context().await;
-    let router = ToolRouter::from_config(
-        &turn.tools_config,
+    let router = ToolRouter::from_turn_context(
+        &turn,
         ToolRouterParams {
             deferred_mcp_tools: None,
             mcp_tools: Some(vec![
@@ -223,8 +222,8 @@ async fn mcp_parallel_support_uses_handler_data() -> anyhow::Result<()> {
 #[tokio::test]
 async fn tools_without_handlers_do_not_support_parallel() -> anyhow::Result<()> {
     let (_, turn) = make_session_and_context().await;
-    let router = ToolRouter::from_config(
-        &turn.tools_config,
+    let router = ToolRouter::from_turn_context(
+        &turn,
         ToolRouterParams {
             deferred_mcp_tools: None,
             mcp_tools: None,
@@ -275,8 +274,8 @@ async fn specs_filter_deferred_dynamic_tools() -> anyhow::Result<()> {
         },
     ];
 
-    let router = ToolRouter::from_config(
-        &turn.tools_config,
+    let router = ToolRouter::from_turn_context(
+        &turn,
         ToolRouterParams {
             deferred_mcp_tools: None,
             mcp_tools: None,
@@ -330,9 +329,20 @@ fn mcp_tool_info(
 async fn extension_tool_executors_are_model_visible_and_dispatchable() -> anyhow::Result<()> {
     let (mut session, turn) = make_session_and_context().await;
     session.services.extensions = extension_tool_test_registry();
+    let history_item = ResponseItem::Message {
+        id: None,
+        role: "user".to_string(),
+        content: vec![ContentItem::InputText {
+            text: "extension history".to_string(),
+        }],
+        phase: None,
+    };
+    session
+        .record_into_history(std::slice::from_ref(&history_item), &turn)
+        .await;
 
-    let router = ToolRouter::from_config(
-        &turn.tools_config,
+    let router = ToolRouter::from_turn_context(
+        &turn,
         ToolRouterParams {
             deferred_mcp_tools: None,
             mcp_tools: None,
@@ -387,6 +397,7 @@ async fn extension_tool_executors_are_model_visible_and_dispatchable() -> anyhow
                 json!({
                     "arguments": { "message": "hello" },
                     "callId": "call-extension",
+                    "conversationHistory": [history_item],
                     "ok": true,
                 })
             );

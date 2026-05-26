@@ -29,6 +29,7 @@ pub static CODEX_ALIASES_TEMP_DIR: Option<TestBinaryDispatchGuard> = {
 
 #[cfg(not(target_os = "windows"))]
 mod abort_tasks;
+mod additional_context;
 mod agent_jobs;
 mod agent_websocket;
 mod agents_md;
@@ -43,6 +44,7 @@ mod codex_delegate;
 mod collaboration_instructions;
 mod compact;
 mod compact_remote;
+mod compact_remote_parity;
 mod compact_resume_fork;
 mod deprecation_notice;
 mod exec;
@@ -57,6 +59,7 @@ mod image_rollout;
 mod items;
 mod json_result;
 mod live_cli;
+mod mcp_turn_metadata;
 mod model_overrides;
 mod model_switching;
 mod model_visible_layout;

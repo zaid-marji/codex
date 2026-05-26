@@ -2168,6 +2168,8 @@ async fn conversation_user_text_turn_is_sent_to_realtime_when_active() -> Result
             }],
             final_output_json_schema: None,
             responsesapi_client_metadata: None,
+            additional_context: Default::default(),
+            thread_settings: Default::default(),
         })
         .await?;
 
@@ -2302,6 +2304,8 @@ async fn conversation_user_text_turn_is_capped_when_mirrored_to_realtime() -> Re
             }],
             final_output_json_schema: None,
             responsesapi_client_metadata: None,
+            additional_context: Default::default(),
+            thread_settings: Default::default(),
         })
         .await?;
 
@@ -3497,6 +3501,8 @@ async fn inbound_handoff_request_steers_active_turn() -> Result<()> {
             }],
             final_output_json_schema: None,
             responsesapi_client_metadata: None,
+            additional_context: Default::default(),
+            thread_settings: Default::default(),
         })
         .await?;
 
