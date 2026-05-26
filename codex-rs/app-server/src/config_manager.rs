@@ -274,8 +274,8 @@ impl ConfigManager {
             codex_config::ConfigLoadOptions {
                 loader_overrides: self.loader_overrides.clone(),
                 strict_config: self.strict_config,
+                cloud_config_bundle: self.current_cloud_config_bundle(),
             },
-            self.current_cloud_config_bundle(),
             thread_config_loader.as_ref(),
         )
         .await
