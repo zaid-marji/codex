@@ -171,9 +171,27 @@ impl ClaudeHooksEngine {
             plugin_hook_load_warnings,
             bypass_hook_trust,
         );
+        let (handlers, warnings) = if prompt_hook_runner.is_some() {
+            (discovered.handlers, discovered.warnings)
+        } else {
+            let mut warnings = discovered.warnings;
+            let mut executable_handlers = Vec::with_capacity(discovered.handlers.len());
+            for handler in discovered.handlers {
+                if matches!(handler.kind, ConfiguredHandlerKind::Prompt { .. }) {
+                    warnings.push(format!(
+                        "skipping prompt hook for {} in {}: prompt hooks require a prompt runner",
+                        crate::schema::hook_event_wire_name(handler.event_name),
+                        handler.source_path.display()
+                    ));
+                } else {
+                    executable_handlers.push(handler);
+                }
+            }
+            (executable_handlers, warnings)
+        };
         Self {
-            handlers: discovered.handlers,
-            warnings: discovered.warnings,
+            handlers,
+            warnings,
             shell,
             prompt_hook_runner,
             output_spiller: HookOutputSpiller::new(),

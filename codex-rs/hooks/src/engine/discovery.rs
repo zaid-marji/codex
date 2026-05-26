@@ -29,6 +29,8 @@ use super::prompt_runner::prompt_hook_behavior;
 use crate::config_rules::hook_states_from_stack;
 use crate::events::common::matcher_pattern_for_event;
 use crate::events::common::validate_matcher_pattern;
+use crate::schema::hook_event_wire_name;
+use codex_protocol::protocol::HookEventName;
 use codex_protocol::protocol::HookHandlerType;
 use codex_protocol::protocol::HookSource;
 use codex_protocol::protocol::HookTrustStatus;
@@ -415,7 +417,7 @@ fn append_matcher_groups(
     warnings: &mut Vec<String>,
     display_order: &mut i64,
     source: &HookHandlerSource<'_>,
-    event_name: codex_protocol::protocol::HookEventName,
+    event_name: HookEventName,
     groups: Vec<MatcherGroup>,
 ) {
     for (group_index, group) in groups.into_iter().enumerate() {
@@ -470,7 +472,6 @@ fn append_matcher_groups(
                     let command = source.env.iter().fold(command, |command, (key, value)| {
                         command.replace(&format!("${{{key}}}"), value)
                     });
-                    // TODO(abhinav): replace this positional suffix with a durable hook id.
                     let key =
                         crate::hook_key(&source.key_source, event_name, group_index, handler_index);
                     let state = source.hook_states.get(&key);
@@ -518,63 +519,45 @@ fn append_matcher_groups(
                     }
                     *display_order += 1;
                 }
-                HookHandlerConfig::Prompt {
-                    prompt,
-                    model,
-                    timeout_sec,
-                    status_message,
-                    continue_on_block,
-                } => {
-                    if matches!(
-                        prompt_hook_behavior(event_name),
-                        PromptHookBehavior::Unsupported
+                HookHandlerConfig::Prompt { .. } => {
+                    let prompt_handler = match normalize_prompt_handler(
+                        event_name,
+                        matcher,
+                        &group,
+                        source.path,
+                        handler,
                     ) {
-                        warnings.push(format!(
-                            "skipping prompt hook in {}: prompt hooks are not supported for {event_name:?}",
-                            source.path.display()
-                        ));
-                        continue;
-                    }
-                    if prompt.trim().is_empty() {
-                        warnings.push(format!(
-                            "skipping empty hook prompt in {}",
-                            source.path.display()
-                        ));
-                        continue;
-                    }
-                    let timeout_sec = timeout_sec.unwrap_or(30).max(1);
-                    let normalized_handler = HookHandlerConfig::Prompt {
-                        prompt: prompt.clone(),
-                        model: model.clone(),
-                        timeout_sec: Some(timeout_sec),
-                        status_message: status_message.clone(),
-                        continue_on_block,
+                        Ok(prompt_handler) => prompt_handler,
+                        Err(warning) => {
+                            warnings.push(warning);
+                            continue;
+                        }
                     };
-                    let current_hash =
-                        command_hook_hash(event_name, matcher, &group, normalized_handler);
-                    // TODO(abhinav): replace this positional suffix with a durable hook id.
                     let key =
                         crate::hook_key(&source.key_source, event_name, group_index, handler_index);
                     let state = source.hook_states.get(&key);
                     let enabled = hook_enabled(source.is_managed, state);
                     let trusted_hash = hook_trusted_hash(source.is_managed, state);
-                    let trust_status =
-                        hook_trust_status(source.is_managed, &current_hash, trusted_hash);
+                    let trust_status = hook_trust_status(
+                        source.is_managed,
+                        &prompt_handler.current_hash,
+                        trusted_hash,
+                    );
                     hook_entries.push(HookListEntry {
                         key: key.clone(),
                         event_name,
                         handler_type: HookHandlerType::Prompt,
                         matcher: matcher.map(ToOwned::to_owned),
                         command: None,
-                        timeout_sec,
-                        status_message: status_message.clone(),
+                        timeout_sec: prompt_handler.timeout_sec,
+                        status_message: prompt_handler.status_message.clone(),
                         source_path: source.path.clone(),
                         source: source.source,
                         plugin_id: source.plugin_id.clone(),
                         display_order: *display_order,
                         enabled,
                         is_managed: source.is_managed,
-                        current_hash,
+                        current_hash: prompt_handler.current_hash,
                         trust_status,
                     });
                     if enabled
@@ -588,12 +571,12 @@ fn append_matcher_groups(
                             event_name,
                             matcher: matcher.map(ToOwned::to_owned),
                             kind: ConfiguredHandlerKind::Prompt {
-                                prompt,
-                                model,
-                                timeout_sec,
-                                continue_on_block,
+                                prompt: prompt_handler.prompt,
+                                model: prompt_handler.model,
+                                timeout_sec: prompt_handler.timeout_sec,
+                                continue_on_block: prompt_handler.continue_on_block,
                             },
-                            status_message,
+                            status_message: prompt_handler.status_message,
                             source_path: source.path.clone(),
                             source: source.source,
                             display_order: *display_order,
@@ -611,6 +594,69 @@ fn append_matcher_groups(
     }
 }
 
+struct NormalizedPromptHandler {
+    prompt: String,
+    model: Option<String>,
+    timeout_sec: u64,
+    status_message: Option<String>,
+    continue_on_block: bool,
+    current_hash: String,
+}
+
+fn normalize_prompt_handler(
+    event_name: HookEventName,
+    matcher: Option<&str>,
+    group: &MatcherGroup,
+    source_path: &AbsolutePathBuf,
+    handler: HookHandlerConfig,
+) -> Result<NormalizedPromptHandler, String> {
+    let HookHandlerConfig::Prompt {
+        prompt,
+        model,
+        timeout_sec,
+        status_message,
+        continue_on_block,
+    } = handler
+    else {
+        unreachable!("normalize_prompt_handler only accepts prompt handlers");
+    };
+
+    if matches!(
+        prompt_hook_behavior(event_name),
+        PromptHookBehavior::Unsupported
+    ) {
+        return Err(format!(
+            "skipping prompt hook in {}: prompt hooks are not supported for {}",
+            source_path.display(),
+            hook_event_wire_name(event_name)
+        ));
+    }
+    if prompt.trim().is_empty() {
+        return Err(format!(
+            "skipping empty hook prompt in {}",
+            source_path.display()
+        ));
+    }
+
+    let timeout_sec = timeout_sec.unwrap_or(30).max(1);
+    let normalized_handler = HookHandlerConfig::Prompt {
+        prompt: prompt.clone(),
+        model: model.clone(),
+        timeout_sec: Some(timeout_sec),
+        status_message: status_message.clone(),
+        continue_on_block,
+    };
+    let current_hash = command_hook_hash(event_name, matcher, group, normalized_handler);
+    Ok(NormalizedPromptHandler {
+        prompt,
+        model,
+        timeout_sec,
+        status_message,
+        continue_on_block,
+        current_hash,
+    })
+}
+
 /// Hash a normalized, config-derived identity instead of source text so equivalent
 /// hooks from config TOML and hooks.json converge on the same trust identity.
 #[derive(Serialize)]
@@ -621,7 +667,7 @@ struct NormalizedHookIdentity {
 }
 
 fn command_hook_hash(
-    event_name: codex_protocol::protocol::HookEventName,
+    event_name: HookEventName,
     matcher: Option<&str>,
     group: &MatcherGroup,
     normalized_handler: HookHandlerConfig,

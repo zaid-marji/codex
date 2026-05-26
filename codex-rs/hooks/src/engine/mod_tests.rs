@@ -20,6 +20,7 @@ use codex_config::TomlValue;
 use codex_plugin::PluginHookSource;
 use codex_plugin::PluginId;
 use codex_protocol::ThreadId;
+use codex_protocol::protocol::HookHandlerType;
 use codex_protocol::protocol::HookOutputEntry;
 use codex_protocol::protocol::HookOutputEntryKind;
 use codex_protocol::protocol::HookRunStatus;
@@ -339,6 +340,84 @@ async fn requirements_managed_hooks_execute_windows_command_override() {
             text: format!("hook exited with code {expected_exit_code}"),
         }]
     );
+}
+
+#[test]
+fn prompt_hooks_without_runner_are_listed_but_skipped_for_execution() {
+    let temp = tempdir().expect("create temp dir");
+    let managed_dir =
+        AbsolutePathBuf::try_from(temp.path().join("managed-hooks")).expect("absolute path");
+    fs::create_dir_all(managed_dir.as_path()).expect("create managed hooks dir");
+
+    let managed_hooks = managed_hooks_for_current_platform(
+        managed_dir.clone(),
+        HookEventsToml {
+            permission_request: vec![MatcherGroup {
+                matcher: Some(".*".to_string()),
+                hooks: vec![HookHandlerConfig::Prompt {
+                    prompt: "Check this hook input: $ARGUMENTS".to_string(),
+                    model: None,
+                    timeout_sec: Some(10),
+                    status_message: Some("checking prompt".to_string()),
+                    continue_on_block: false,
+                }],
+            }],
+            ..Default::default()
+        },
+    );
+    let config_layer_stack = ConfigLayerStack::new(
+        Vec::new(),
+        ConfigRequirements {
+            managed_hooks: Some(ConstrainedWithSource::new(
+                Constrained::allow_any(managed_hooks.clone()),
+                Some(RequirementSource::CloudRequirements),
+            )),
+            ..ConfigRequirements::default()
+        },
+        ConfigRequirementsToml {
+            hooks: Some(managed_hooks),
+            ..ConfigRequirementsToml::default()
+        },
+    )
+    .expect("config layer stack");
+
+    let engine = ClaudeHooksEngine::new(
+        /*enabled*/ true,
+        /*bypass_hook_trust*/ false,
+        Some(&config_layer_stack),
+        Vec::new(),
+        Vec::new(),
+        CommandShell {
+            program: String::new(),
+            args: Vec::new(),
+        },
+        /*prompt_hook_runner*/ None,
+    );
+
+    assert!(engine.handlers.is_empty());
+    assert_eq!(
+        engine.warnings(),
+        &[format!(
+            "skipping prompt hook for PermissionRequest in {}: prompt hooks require a prompt runner",
+            managed_dir.display()
+        )]
+    );
+
+    let listed = crate::list_hooks(crate::HooksConfig {
+        legacy_notify_argv: None,
+        feature_enabled: true,
+        bypass_hook_trust: false,
+        config_layer_stack: Some(config_layer_stack),
+        plugin_hook_sources: Vec::new(),
+        plugin_hook_load_warnings: Vec::new(),
+        shell_program: None,
+        shell_args: Vec::new(),
+        prompt_hook_runner: None,
+    });
+
+    assert_eq!(listed.warnings, Vec::<String>::new());
+    assert_eq!(listed.hooks.len(), 1);
+    assert_eq!(listed.hooks[0].handler_type, HookHandlerType::Prompt);
 }
 
 #[test]

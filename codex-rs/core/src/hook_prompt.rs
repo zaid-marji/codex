@@ -19,10 +19,20 @@ use crate::client_common::ResponseEvent;
 use crate::config::Config;
 use crate::stream_events_utils::raw_assistant_output_text_from_item;
 
-const PROMPT_HOOK_BASE_INSTRUCTIONS: &str = r#"You evaluate Codex prompt hooks.
-Respond only with JSON matching {"ok": boolean, "reason": string}.
-Set ok to false only when the hook prompt criteria fail; include a non-empty reason when ok is false.
-Do not include Markdown or extra text."#;
+const PROMPT_HOOK_BASE_INSTRUCTIONS: &str = r#"You evaluate a Codex prompt hook.
+
+The user message contains:
+1. The hook author's instructions.
+2. The hook input JSON.
+
+Decide whether the hook input satisfies the hook author's instructions.
+
+Return only JSON:
+{"ok": true}
+or
+{"ok": false, "reason": "concise actionable reason"}
+
+Use ok:false only when the hook criteria fail. Do not answer the user's task. Do not include Markdown or extra text."#;
 
 pub(crate) fn build_prompt_hook_runner(
     model_client: ModelClient,
@@ -51,6 +61,11 @@ pub(crate) fn build_prompt_hook_runner(
     })
 }
 
+/// Run the hook as an isolated model request: resolve the configured model,
+/// send the rendered hook prompt as the only user message, disable all
+/// tools/personality/reasoning summaries, and constrain the final answer to the
+/// small `{ ok, reason }` contract that `codex-hooks` maps back into existing
+/// hook output semantics.
 async fn run_prompt_hook(
     model_client: ModelClient,
     models_manager: SharedModelsManager,

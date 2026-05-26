@@ -12,6 +12,7 @@ use tokio::time::timeout;
 use super::ConfiguredHandler;
 use super::ConfiguredHandlerKind;
 use super::command_runner::CommandRunResult;
+use crate::schema::hook_event_wire_name;
 
 const PROMPT_ARGUMENTS_PLACEHOLDER: &str = "$ARGUMENTS";
 
@@ -84,8 +85,14 @@ struct PromptHookOutput {
     reason: Option<String>,
 }
 
+/// Execute a model-backed prompt hook and adapt its response into the same
+/// synthetic stdout shape that command hooks already parse. The hook prompt is
+/// rendered with `$ARGUMENTS` replacement when present, otherwise the hook input
+/// JSON is appended. The model must return `{ ok, reason }`; this function then
+/// maps `ok:false` through the per-event behavior table so block/no-op/feedback
+/// semantics stay centralized.
 pub(crate) async fn run_prompt(
-    runner: Option<&PromptHookRunner>,
+    runner: &PromptHookRunner,
     handler: &ConfiguredHandler,
     input_json: &str,
     default_model: String,
@@ -108,16 +115,6 @@ pub(crate) async fn run_prompt(
             Some("command handler cannot run as a prompt hook".to_string()),
         );
     };
-    let Some(runner) = runner else {
-        return prompt_run_result(
-            started_at,
-            started,
-            /*exit_code*/ None,
-            String::new(),
-            Some("prompt hook cannot run because no prompt runner is configured".to_string()),
-        );
-    };
-
     let request = PromptHookRequest {
         event_name: handler.event_name,
         prompt: render_prompt(prompt, input_json),
@@ -221,7 +218,7 @@ fn prompt_block_output(
         PromptHookBehavior::Unsupported => {
             return Err(format!(
                 "prompt hooks are not supported for {}",
-                event_label(event_name)
+                hook_event_wire_name(event_name)
             ));
         }
     };
@@ -251,124 +248,6 @@ fn prompt_run_result(
     }
 }
 
-fn event_label(event_name: HookEventName) -> &'static str {
-    match event_name {
-        HookEventName::PreToolUse => "PreToolUse",
-        HookEventName::PermissionRequest => "PermissionRequest",
-        HookEventName::PostToolUse => "PostToolUse",
-        HookEventName::PreCompact => "PreCompact",
-        HookEventName::PostCompact => "PostCompact",
-        HookEventName::SessionStart => "SessionStart",
-        HookEventName::UserPromptSubmit => "UserPromptSubmit",
-        HookEventName::SubagentStart => "SubagentStart",
-        HookEventName::SubagentStop => "SubagentStop",
-        HookEventName::Stop => "Stop",
-    }
-}
-
 #[cfg(test)]
-mod tests {
-    use pretty_assertions::assert_eq;
-
-    use super::*;
-
-    #[test]
-    fn render_prompt_replaces_arguments_placeholder() {
-        assert_eq!(
-            render_prompt("Check: $ARGUMENTS", r#"{"event":"Stop"}"#),
-            r#"Check: {"event":"Stop"}"#
-        );
-    }
-
-    #[test]
-    fn render_prompt_appends_arguments_without_placeholder() {
-        assert_eq!(
-            render_prompt("Check the turn.", r#"{"event":"Stop"}"#),
-            "Check the turn.\n\n{\"event\":\"Stop\"}"
-        );
-    }
-
-    #[test]
-    fn stop_ok_false_becomes_block_decision() {
-        assert_json_eq(
-            prompt_output_to_command_stdout(
-                HookEventName::Stop,
-                /*continue_on_block*/ false,
-                r#"{"ok":false,"reason":"mention tests"}"#,
-            )
-            .expect("prompt output"),
-            json!({
-                "decision": "block",
-                "reason": "mention tests",
-            }),
-        );
-    }
-
-    #[test]
-    fn permission_request_ok_false_records_reason_without_decision() {
-        assert_json_eq(
-            prompt_output_to_command_stdout(
-                HookEventName::PermissionRequest,
-                /*continue_on_block*/ false,
-                r#"{"ok":false,"reason":"looks suspicious"}"#,
-            )
-            .expect("prompt output"),
-            json!({
-                "systemMessage": "looks suspicious",
-            }),
-        );
-    }
-
-    #[test]
-    fn post_tool_use_ok_false_honors_continue_on_block() {
-        assert_json_eq(
-            prompt_output_to_command_stdout(
-                HookEventName::PostToolUse,
-                /*continue_on_block*/ true,
-                r#"{"ok":false,"reason":"summarize the command output"}"#,
-            )
-            .expect("prompt output"),
-            json!({
-                "decision": "block",
-                "reason": "summarize the command output",
-            }),
-        );
-        assert_json_eq(
-            prompt_output_to_command_stdout(
-                HookEventName::PostToolUse,
-                /*continue_on_block*/ false,
-                r#"{"ok":false,"reason":"stop here"}"#,
-            )
-            .expect("prompt output"),
-            json!({
-                "continue": false,
-                "decision": "block",
-                "reason": "stop here",
-                "stopReason": "stop here",
-            }),
-        );
-    }
-
-    #[test]
-    fn every_event_declares_prompt_behavior() {
-        for event_name in [
-            HookEventName::PreToolUse,
-            HookEventName::PermissionRequest,
-            HookEventName::PostToolUse,
-            HookEventName::PreCompact,
-            HookEventName::PostCompact,
-            HookEventName::SessionStart,
-            HookEventName::UserPromptSubmit,
-            HookEventName::SubagentStart,
-            HookEventName::SubagentStop,
-            HookEventName::Stop,
-        ] {
-            let _ = prompt_hook_behavior(event_name);
-        }
-    }
-
-    fn assert_json_eq(actual: String, expected: serde_json::Value) {
-        let actual: serde_json::Value = serde_json::from_str(&actual).expect("json output");
-        assert_eq!(actual, expected);
-    }
-}
+#[path = "prompt_runner_tests.rs"]
+mod tests;

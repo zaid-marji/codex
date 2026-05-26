@@ -120,6 +120,22 @@ pub(crate) async fn execute_handlers<T>(
                     run_command(shell, &handler, &input_json, cwd).await
                 }
                 ConfiguredHandlerKind::Prompt { .. } => {
+                    let Some(prompt_runner) = prompt_runner else {
+                        let now = chrono::Utc::now().timestamp();
+                        let result = CommandRunResult {
+                            started_at: now,
+                            completed_at: now,
+                            duration_ms: 0,
+                            exit_code: None,
+                            stdout: String::new(),
+                            stderr: String::new(),
+                            error: Some(
+                                "prompt hook cannot run because no prompt runner is configured"
+                                    .to_string(),
+                            ),
+                        };
+                        return (configured_order, parse(&handler, result, turn_id));
+                    };
                     run_prompt(prompt_runner, &handler, &input_json, default_model).await
                 }
             };
