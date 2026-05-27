@@ -40,7 +40,7 @@ const NETWORK_TIMEOUT_MS: u64 = 10_000;
 #[cfg(target_arch = "aarch64")]
 const NETWORK_TIMEOUT_MS: u64 = 10_000;
 
-const BWRAP_UNAVAILABLE_ERR: &str = "build-time bubblewrap is not available in this build.";
+const BWRAP_UNAVAILABLE_ERR: &str = "bubblewrap is unavailable: no system bwrap was found";
 
 fn create_env_from_core_vars() -> HashMap<String, String> {
     let policy = ShellEnvironmentPolicy::default();
@@ -590,6 +590,59 @@ async fn sandbox_blocks_codex_symlink_replacement_attack() {
 }
 
 #[tokio::test]
+async fn sandbox_reports_codex_symlink_build_failure_without_panicking() {
+    if should_skip_bwrap_tests().await {
+        eprintln!("skipping bwrap test: bwrap sandbox prerequisites are unavailable");
+        return;
+    }
+
+    use std::os::unix::fs::symlink;
+
+    let tmpdir = tempfile::tempdir().expect("tempdir");
+    let decoy = tmpdir.path().join("decoy-codex");
+    std::fs::create_dir_all(&decoy).expect("create decoy dir");
+
+    let dot_codex = tmpdir.path().join(".codex");
+    symlink(&decoy, &dot_codex).expect("create .codex symlink");
+
+    let output = match run_cmd_result_with_writable_roots(
+        &["bash", "-lc", "true"],
+        &[tmpdir.path().to_path_buf()],
+        LONG_TIMEOUT_MS,
+        /*use_legacy_landlock*/ false,
+        /*network_access*/ true,
+    )
+    .await
+    {
+        Err(CodexErr::Sandbox(SandboxErr::Denied { output, .. })) => *output,
+        result => panic!(".codex symlink build failure should deny: {result:?}"),
+    };
+
+    assert_eq!(output.exit_code, 1);
+    assert!(
+        output
+            .stderr
+            .text
+            .contains("error building bubblewrap command:"),
+        "stderr: {}",
+        output.stderr.text
+    );
+    assert!(
+        output
+            .stderr
+            .text
+            .contains("cannot enforce sandbox read-only path"),
+        "stderr: {}",
+        output.stderr.text
+    );
+    assert!(
+        !output.stderr.text.contains("panicked at"),
+        "stderr: {}",
+        output.stderr.text
+    );
+}
+
+#[tokio::test]
 async fn sandbox_keeps_parent_repo_discovery_while_blocking_child_metadata() {
     if should_skip_bwrap_tests().await {
         eprintln!("skipping bwrap test: bwrap sandbox prerequisites are unavailable");
@@ -754,7 +807,7 @@ async fn sandbox_blocks_explicit_split_policy_carveouts_under_bwrap() {
             path: FileSystemPath::Path {
                 path: AbsolutePathBuf::try_from(blocked.as_path()).expect("absolute blocked dir"),
             },
-            access: FileSystemAccessMode::None,
+            access: FileSystemAccessMode::Deny,
         },
     ]);
     let permission_profile = PermissionProfile::from_runtime_permissions(
@@ -822,7 +875,7 @@ async fn sandbox_reenables_writable_subpaths_under_unreadable_parents() {
             path: FileSystemPath::Path {
                 path: AbsolutePathBuf::try_from(blocked.as_path()).expect("absolute blocked dir"),
             },
-            access: FileSystemAccessMode::None,
+            access: FileSystemAccessMode::Deny,
         },
         FileSystemSandboxEntry {
             path: FileSystemPath::Path {
@@ -880,7 +933,7 @@ async fn sandbox_blocks_root_read_carveouts_under_bwrap() {
             path: FileSystemPath::Path {
                 path: AbsolutePathBuf::try_from(blocked.as_path()).expect("absolute blocked dir"),
             },
-            access: FileSystemAccessMode::None,
+            access: FileSystemAccessMode::Deny,
         },
     ]);
     let permission_profile = PermissionProfile::from_runtime_permissions(

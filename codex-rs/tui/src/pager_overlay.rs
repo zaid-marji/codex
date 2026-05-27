@@ -941,6 +941,10 @@ mod tests {
             self.lines.clone()
         }
 
+        fn raw_lines(&self) -> Vec<Line<'static>> {
+            self.lines.clone()
+        }
+
         fn transcript_lines(&self, _width: u16) -> Vec<Line<'static>> {
             self.lines.clone()
         }
@@ -1129,7 +1133,7 @@ mod tests {
         cells.push(apply_begin_cell);
 
         let apply_end_cell: Arc<dyn HistoryCell> = history_cell::new_approval_decision_cell(
-            vec!["ls".into()],
+            history_cell::ApprovalDecisionSubject::Command(vec!["ls".into()]),
             ReviewDecision::Approved,
             history_cell::ApprovalDecisionActor::User,
         )

@@ -1,5 +1,7 @@
+use crate::mcp::CallToolResult;
 use crate::memory_citation::MemoryCitation;
 use crate::models::ContentItem;
+use crate::models::ImageDetail;
 use crate::models::MessagePhase;
 use crate::models::ResponseItem;
 use crate::models::WebSearchAction;
@@ -10,6 +12,9 @@ use crate::protocol::ContextCompactedEvent;
 use crate::protocol::EventMsg;
 use crate::protocol::FileChange;
 use crate::protocol::ImageGenerationEndEvent;
+use crate::protocol::McpInvocation;
+use crate::protocol::McpToolCallBeginEvent;
+use crate::protocol::McpToolCallEndEvent;
 use crate::protocol::PatchApplyBeginEvent;
 use crate::protocol::PatchApplyEndEvent;
 use crate::protocol::PatchApplyStatus;
@@ -27,8 +32,10 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::Duration;
 use ts_rs::TS;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema)]
 #[serde(tag = "type")]
 #[ts(tag = "type")]
@@ -42,6 +49,7 @@ pub enum TurnItem {
     ImageView(ImageViewItem),
     ImageGeneration(ImageGenerationItem),
     FileChange(FileChangeItem),
+    McpToolCall(McpToolCallItem),
     ContextCompaction(ContextCompactionItem),
 }
 
@@ -160,6 +168,48 @@ pub struct FileChangeItem {
     pub stderr: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct McpToolCallItem {
+    pub id: String,
+    pub server: String,
+    pub tool: String,
+    pub arguments: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub mcp_app_resource_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub plugin_id: Option<String>,
+    pub status: McpToolCallStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub result: Option<CallToolResult>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub error: Option<McpToolCallError>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string", optional)]
+    pub duration: Option<Duration>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, TS, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub enum McpToolCallStatus {
+    InProgress,
+    Completed,
+    Failed,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct McpToolCallError {
+    pub message: String,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema)]
 pub struct ContextCompactionItem {
     pub id: String,
@@ -197,7 +247,9 @@ impl UserMessageItem {
         EventMsg::UserMessage(UserMessageEvent {
             message: self.message(),
             images: Some(self.image_urls()),
+            image_details: self.image_details(),
             local_images: self.local_image_paths(),
+            local_image_details: self.local_image_details(),
             text_elements: self.text_elements(),
         })
     }
@@ -244,21 +296,54 @@ impl UserMessageItem {
         self.content
             .iter()
             .filter_map(|c| match c {
-                UserInput::Image { image_url } => Some(image_url.clone()),
+                UserInput::Image { image_url, .. } => Some(image_url.clone()),
                 _ => None,
             })
             .collect()
+    }
+
+    pub fn image_details(&self) -> Vec<Option<ImageDetail>> {
+        trim_trailing_default_image_details(
+            self.content
+                .iter()
+                .filter_map(|c| match c {
+                    UserInput::Image { detail, .. } => Some(*detail),
+                    _ => None,
+                })
+                .collect(),
+        )
     }
 
     pub fn local_image_paths(&self) -> Vec<std::path::PathBuf> {
         self.content
             .iter()
             .filter_map(|c| match c {
-                UserInput::LocalImage { path } => Some(path.clone()),
+                UserInput::LocalImage { path, .. } => Some(path.clone()),
                 _ => None,
             })
             .collect()
     }
+
+    pub fn local_image_details(&self) -> Vec<Option<ImageDetail>> {
+        trim_trailing_default_image_details(
+            self.content
+                .iter()
+                .filter_map(|c| match c {
+                    UserInput::LocalImage { detail, .. } => Some(*detail),
+                    _ => None,
+                })
+                .collect(),
+        )
+    }
+}
+
+fn trim_trailing_default_image_details(
+    mut details: Vec<Option<ImageDetail>>,
+) -> Vec<Option<ImageDetail>> {
+    while matches!(details.last(), Some(None)) {
+        details.pop();
+    }
+    details
 }
 
 impl HookPromptItem {
@@ -438,6 +523,42 @@ impl FileChangeItem {
     }
 }
 
+impl McpToolCallItem {
+    pub fn as_legacy_begin_event(&self) -> EventMsg {
+        EventMsg::McpToolCallBegin(McpToolCallBeginEvent {
+            call_id: self.id.clone(),
+            invocation: McpInvocation {
+                server: self.server.clone(),
+                tool: self.tool.clone(),
+                arguments: (!self.arguments.is_null()).then(|| self.arguments.clone()),
+            },
+            mcp_app_resource_uri: self.mcp_app_resource_uri.clone(),
+            plugin_id: self.plugin_id.clone(),
+        })
+    }
+
+    pub fn as_legacy_end_event(&self) -> Option<EventMsg> {
+        let result = match (&self.result, &self.error) {
+            (Some(result), _) => Ok(result.clone()),
+            (None, Some(error)) => Err(error.message.clone()),
+            (None, None) => return None,
+        };
+
+        Some(EventMsg::McpToolCallEnd(McpToolCallEndEvent {
+            call_id: self.id.clone(),
+            invocation: McpInvocation {
+                server: self.server.clone(),
+                tool: self.tool.clone(),
+                arguments: (!self.arguments.is_null()).then(|| self.arguments.clone()),
+            },
+            mcp_app_resource_uri: self.mcp_app_resource_uri.clone(),
+            plugin_id: self.plugin_id.clone(),
+            duration: self.duration?,
+            result,
+        }))
+    }
+}
+
 impl TurnItem {
     pub fn id(&self) -> String {
         match self {
@@ -450,6 +571,7 @@ impl TurnItem {
             TurnItem::ImageView(item) => item.id.clone(),
             TurnItem::ImageGeneration(item) => item.id.clone(),
             TurnItem::FileChange(item) => item.id.clone(),
+            TurnItem::McpToolCall(item) => item.id.clone(),
             TurnItem::ContextCompaction(item) => item.id.clone(),
         }
     }
@@ -472,6 +594,7 @@ impl TurnItem {
                 .as_legacy_end_event(String::new())
                 .into_iter()
                 .collect(),
+            TurnItem::McpToolCall(item) => item.as_legacy_end_event().into_iter().collect(),
             TurnItem::Reasoning(item) => item.as_legacy_events(show_raw_agent_reasoning),
             TurnItem::ContextCompaction(item) => vec![item.as_legacy_event()],
         }

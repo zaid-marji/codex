@@ -46,7 +46,7 @@ Use `codex mcp` to add/list/get/remove MCP server launchers defined in `config.t
 
 ### Notifications
 
-The legacy `notify` setting is deprecated and will be removed in a future release. Existing configurations still work, but new automation should use lifecycle hooks instead. The [notify documentation](../docs/config.md#notify) explains the remaining compatibility behavior. When Codex detects that it is running under WSL 2 inside Windows Terminal (`WT_SESSION` is set), the TUI automatically falls back to native Windows toast notifications so approval prompts and completed turns surface even though Windows Terminal does not implement OSC 9.
+You can enable notifications by configuring a script that is run whenever the agent finishes a turn. The [notify documentation](../docs/config.md#notify) includes a detailed example that explains how to get desktop notifications via [terminal-notifier](https://github.com/julienXX/terminal-notifier) on macOS. When Codex detects that it is running under WSL 2 inside Windows Terminal (`WT_SESSION` is set), the TUI automatically falls back to native Windows toast notifications so approval prompts and completed turns surface even though Windows Terminal does not implement OSC 9.
 
 ### `codex exec` to run Codex programmatically/non-interactively
 
@@ -55,25 +55,20 @@ Use `codex exec --ephemeral ...` to run without persisting session rollout files
 
 ### Experimenting with the Codex Sandbox
 
-To test to see what happens when a command is run under the sandbox provided by Codex, we provide the following subcommands in Codex CLI:
+To test to see what happens when a command is run under the sandbox provided by Codex, use the `sandbox` subcommand in Codex CLI:
 
 ```
-# macOS
-codex sandbox macos [--log-denials] [COMMAND]...
+# Uses the sandbox implementation for the current host OS:
+# Seatbelt on macOS, the Linux sandbox on Linux, and Windows restricted token on Windows.
+codex sandbox [COMMAND]...
 
-# Linux
-codex sandbox linux [COMMAND]...
-
-# Windows
-codex sandbox windows [COMMAND]...
-
-# Legacy aliases
-codex debug seatbelt [--log-denials] [COMMAND]...
-codex debug landlock [COMMAND]...
+# macOS-only diagnostic option
+codex sandbox --log-denials [COMMAND]...
 ```
 
-To try a writable legacy sandbox mode with these commands, pass an explicit config override such
-as `-c 'sandbox_mode="workspace-write"'`.
+`codex sandbox` also accepts `--profile NAME` (`-p NAME`) to layer
+`$CODEX_HOME/NAME.config.toml` onto the base user config for the sandboxed
+command.
 
 ### Selecting a sandbox policy via `--sandbox`
 
@@ -90,7 +85,6 @@ codex --sandbox workspace-write
 codex --sandbox danger-full-access
 ```
 
-The same setting can be persisted in `~/.codex/config.toml` via the top-level `sandbox_mode = "MODE"` key, e.g. `sandbox_mode = "workspace-write"`.
 In `workspace-write`, Codex also includes `~/.codex/memories` in its writable roots so memory maintenance does not require an extra approval.
 Set the following to allow Git metadata writes under writable roots while keeping Git config and hooks read-only:
 
