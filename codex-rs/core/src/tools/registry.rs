@@ -358,17 +358,24 @@ impl LazyToolRegistry {
             .extend(tool_names);
     }
 
+    pub(crate) fn can_register(&self, tool_name: &ToolName) -> bool {
+        let state = self
+            .state
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        !state.static_tool_names.contains(tool_name)
+            || state.equivalent_static_mcp_tool_names.contains(tool_name)
+    }
+
     pub(crate) fn register(&self, tool: Arc<dyn CoreToolRuntime>) -> bool {
         let tool_name = tool.tool_name();
+        if !self.can_register(&tool_name) {
+            return false;
+        }
         let mut state = self
             .state
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if state.static_tool_names.contains(&tool_name)
-            && !state.equivalent_static_mcp_tool_names.contains(&tool_name)
-        {
-            return false;
-        }
         state.tools.entry(tool_name).or_insert(tool);
         true
     }

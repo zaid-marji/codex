@@ -720,6 +720,11 @@ async fn tool_search_returns_deferred_tools_without_follow_up_tool_injection() -
             .any(|name| name == SEARCH_CALENDAR_NAMESPACE),
         "app namespace should still be hidden before search: {first_request_tools:?}"
     );
+    assert!(
+        tool_search_description(&first_request_body).is_some_and(|description| description
+            .contains("- MCP tools: Tools from MCP servers still starting")),
+        "pending Apps startup should be advertised as an MCP tool_search source"
+    );
 
     let output_item = tool_search_output_item(&requests[1], call_id);
     assert_eq!(

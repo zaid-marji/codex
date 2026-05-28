@@ -66,6 +66,15 @@ impl ToolSearchHandler {
                 .into_iter()
                 .filter_map(|search_info| search_info.source_info),
         );
+        if lazy_mcp_tools.is_some() {
+            search_source_infos.push(ToolSearchSourceInfo {
+                name: "MCP tools".to_string(),
+                description: Some(
+                    "Tools from MCP servers still starting in the background can be loaded on demand."
+                        .to_string(),
+                ),
+            });
+        }
         let documents: Vec<Document<usize>> = entries
             .iter()
             .map(|entry| entry.search_text.clone())
@@ -128,11 +137,7 @@ impl ToolExecutor<ToolInvocation> for ToolSearchHandler {
             ));
         }
 
-        let tools = if let Some(load_mcp_tools) = &self.lazy_mcp_tools {
-            self.search_with_lazy_mcp_tools(query, limit, load_mcp_tools().await)?
-        } else {
-            self.search(query, limit)?
-        };
+        let tools = self.search_with_lazy_mcp_fallback(query, limit).await?;
 
         Ok(boxed_tool_output(ToolSearchOutput { tools }))
     }
@@ -141,6 +146,23 @@ impl ToolExecutor<ToolInvocation> for ToolSearchHandler {
 impl CoreToolRuntime for ToolSearchHandler {}
 
 impl ToolSearchHandler {
+    async fn search_with_lazy_mcp_fallback(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<LoadableToolSpec>, FunctionCallError> {
+        let tools = self.search(query, limit)?;
+        if !tools.is_empty() {
+            return Ok(tools);
+        }
+
+        if let Some(load_mcp_tools) = &self.lazy_mcp_tools {
+            self.search_with_lazy_mcp_tools(query, limit, load_mcp_tools().await)
+        } else {
+            Ok(tools)
+        }
+    }
+
     fn search(
         &self,
         query: &str,
@@ -170,8 +192,21 @@ impl ToolSearchHandler {
         limit: usize,
         mcp_tools: Vec<codex_mcp::ToolInfo>,
     ) -> Result<Vec<LoadableToolSpec>, FunctionCallError> {
-        let mut entries = self.entries.clone();
-        entries.extend(mcp_tools.into_iter().filter_map(|tool| {
+        struct SearchCandidate {
+            entry: ToolSearchEntry,
+            lazy_handler: Option<Arc<McpHandler>>,
+        }
+
+        let mut candidates = self
+            .entries
+            .iter()
+            .cloned()
+            .map(|entry| SearchCandidate {
+                entry,
+                lazy_handler: None,
+            })
+            .collect::<Vec<_>>();
+        candidates.extend(mcp_tools.into_iter().filter_map(|tool| {
             let handler = match McpHandler::new(tool) {
                 Ok(handler) => handler,
                 Err(err) => {
@@ -181,20 +216,23 @@ impl ToolSearchHandler {
             };
             let search_info = handler.search_info()?;
             let tool_name = handler.tool_name();
-            if !self.lazy_tool_registry.register(Arc::new(handler)) {
+            if !self.lazy_tool_registry.can_register(&tool_name) {
                 warn!(
                     "Skipping lazily loaded MCP tool `{tool_name}` shadowed by a registered tool"
                 );
                 return None;
             }
-            Some(search_info.entry)
+            Some(SearchCandidate {
+                entry: search_info.entry,
+                lazy_handler: Some(Arc::new(handler)),
+            })
         }));
-        if entries.is_empty() {
+        if candidates.is_empty() {
             return Ok(Vec::new());
         }
-        let documents = entries
+        let documents = candidates
             .iter()
-            .map(|entry| entry.search_text.clone())
+            .map(|candidate| candidate.entry.search_text.clone())
             .enumerate()
             .map(|(idx, search_text)| Document::new(idx, search_text))
             .collect::<Vec<_>>();
@@ -204,7 +242,19 @@ impl ToolSearchHandler {
             .search(query, limit)
             .into_iter()
             .map(|result| result.document.id)
-            .filter_map(|id| entries.get(id));
+            .filter_map(|id| candidates.get(id))
+            .filter_map(|candidate| {
+                if let Some(handler) = &candidate.lazy_handler
+                    && !self.lazy_tool_registry.register(handler.clone())
+                {
+                    warn!(
+                        "Skipping lazily loaded MCP tool `{}` shadowed by a registered tool",
+                        handler.tool_name()
+                    );
+                    return None;
+                }
+                Some(&candidate.entry)
+            });
         self.search_output_tools(results)
     }
 }
@@ -220,6 +270,8 @@ mod tests {
     use codex_tools::ResponsesApiTool;
     use pretty_assertions::assert_eq;
     use rmcp::model::Tool;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering;
 
     #[test]
     fn mixed_search_results_coalesce_mcp_namespaces() {
@@ -362,7 +414,7 @@ mod tests {
     }
 
     #[test]
-    fn lazy_mcp_search_registers_returned_tools_for_dispatch() {
+    fn lazy_mcp_search_registers_only_returned_tools_for_dispatch() {
         let lazy_tool_registry = LazyToolRegistry::default();
         let registry = crate::tools::registry::ToolRegistry::from_tools_with_lazy_registry(
             Vec::<Arc<dyn CoreToolRuntime>>::new(),
@@ -379,7 +431,10 @@ mod tests {
             .search_with_lazy_mcp_tools(
                 "calendar",
                 /*limit*/ 1,
-                vec![tool_info("calendar", "create_event", "Create events")],
+                vec![
+                    tool_info("calendar", "create_event", "Create events"),
+                    tool_info("mail", "draft_message", "Draft mail"),
+                ],
             )
             .expect("lazy MCP search should produce a tool spec");
 
@@ -388,6 +443,61 @@ mod tests {
             registry.tool_names_for_test(),
             vec![ToolName::namespaced("mcp__calendar", "create_event")]
         );
+    }
+
+    #[tokio::test]
+    async fn lazy_mcp_search_does_not_load_pending_tools_when_existing_result_matches() {
+        let dynamic_tool = DynamicToolHandler::new(&DynamicToolSpec {
+            namespace: Some("codex_app".to_string()),
+            name: "automation_update".to_string(),
+            description: "Create recurring automations.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false,
+            }),
+            defer_loading: true,
+        })
+        .expect("dynamic tool should convert");
+        let search_info = dynamic_tool
+            .search_info()
+            .expect("dynamic handler should return search info");
+        let loader_called = Arc::new(AtomicBool::new(/*v*/ false));
+        let loader_called_for_future = Arc::clone(&loader_called);
+        let loader: LazyMcpToolSearchLoader = Arc::new(move || {
+            loader_called_for_future.store(/*val*/ true, Ordering::SeqCst);
+            Box::pin(async { Vec::new() })
+        });
+        let handler = ToolSearchHandler::new_with_lazy_mcp_tools(
+            vec![search_info],
+            /*reloaded_mcp_search_infos*/ Vec::new(),
+            Some(loader),
+            LazyToolRegistry::default(),
+        );
+
+        let tools = handler
+            .search_with_lazy_mcp_fallback("automation", /*limit*/ 1)
+            .await
+            .expect("existing deferred tool search should succeed");
+
+        assert_eq!(tools.len(), 1);
+        assert!(!loader_called.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn lazy_mcp_search_advertises_background_mcp_source() {
+        let loader: LazyMcpToolSearchLoader = Arc::new(|| Box::pin(async { Vec::new() }));
+        let handler = ToolSearchHandler::new_with_lazy_mcp_tools(
+            Vec::new(),
+            /*reloaded_mcp_search_infos*/ Vec::new(),
+            Some(loader),
+            LazyToolRegistry::default(),
+        );
+
+        let ToolSpec::ToolSearch { description, .. } = handler.spec() else {
+            panic!("expected tool_search spec");
+        };
+        assert!(description.contains("- MCP tools: Tools from MCP servers still starting"));
     }
 
     #[test]
