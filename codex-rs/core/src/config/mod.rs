@@ -3483,7 +3483,7 @@ impl Config {
                 .tui
                 .as_ref()
                 .map(|t| t.show_mcp_startup_status)
-                .unwrap_or(false),
+                .unwrap_or(/*default*/ false),
             model_availability_nux: cfg
                 .tui
                 .as_ref()
