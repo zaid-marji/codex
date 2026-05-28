@@ -99,6 +99,7 @@ use codex_protocol::protocol::ReasoningRawContentDeltaEvent;
 use codex_protocol::protocol::TurnDiffEvent;
 use codex_protocol::protocol::WarningEvent;
 use codex_protocol::user_input::UserInput;
+use codex_tools::DiscoverableTool;
 use codex_tools::ToolName;
 use codex_tools::filter_request_plugin_install_discoverable_tools_for_client;
 use codex_utils_stream_parser::AssistantTextChunk;
@@ -1230,6 +1231,9 @@ pub(crate) async fn built_tools(
     } else {
         None
     };
+    let apps_inventory_pending = pending_mcp_server_names
+        .iter()
+        .any(|server_name| server_name == CODEX_APPS_MCP_SERVER_NAME);
     let lazy_mcp_tools: Option<LazyMcpToolSearchLoader> = (!pending_mcp_server_names.is_empty())
         .then(|| {
             let mcp_connection_manager = Arc::clone(&sess.services.mcp_connection_manager);
@@ -1256,6 +1260,10 @@ pub(crate) async fn built_tools(
             )
             .await
             .map(|discoverable_tools| {
+                let discoverable_tools = filter_discoverable_tools_while_apps_inventory_pending(
+                    discoverable_tools,
+                    apps_inventory_pending,
+                );
                 filter_request_plugin_install_discoverable_tools_for_client(
                     discoverable_tools,
                     turn_context.app_server_client_name.as_deref(),
@@ -1294,6 +1302,23 @@ pub(crate) async fn built_tools(
             dynamic_tools: turn_context.dynamic_tools.as_slice(),
         },
     )))
+}
+
+pub(super) fn filter_discoverable_tools_while_apps_inventory_pending(
+    discoverable_tools: Vec<DiscoverableTool>,
+    apps_inventory_pending: bool,
+) -> Vec<DiscoverableTool> {
+    if !apps_inventory_pending {
+        return discoverable_tools;
+    }
+
+    // Connector installability depends on current Apps accessibility, which is
+    // unknown until codex_apps startup completes. Plugin suggestions are
+    // independent of that pending inventory.
+    discoverable_tools
+        .into_iter()
+        .filter(|tool| matches!(tool, DiscoverableTool::Plugin(_)))
+        .collect()
 }
 
 #[expect(
