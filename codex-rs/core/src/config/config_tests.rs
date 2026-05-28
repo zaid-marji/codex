@@ -2444,43 +2444,6 @@ async fn empty_config_defaults_to_builtin_profile_for_trusted_project() -> std::
 }
 
 #[tokio::test]
-async fn empty_config_defaults_to_builtin_read_only_for_untrusted_project() -> std::io::Result<()> {
-    let codex_home = TempDir::new()?;
-    let cwd = TempDir::new()?;
-    let project_key = cwd.path().to_string_lossy().to_string();
-
-    let config = Config::load_from_base_config_with_overrides(
-        ConfigToml {
-            projects: Some(HashMap::from([(
-                project_key,
-                ProjectConfig {
-                    trust_level: Some(TrustLevel::Untrusted),
-                },
-            )])),
-            ..Default::default()
-        },
-        ConfigOverrides {
-            cwd: Some(cwd.path().to_path_buf()),
-            ..Default::default()
-        },
-        codex_home.abs(),
-    )
-    .await?;
-
-    assert_eq!(
-        config.permissions.active_permission_profile(),
-        Some(ActivePermissionProfile::read_only())
-    );
-    assert!(
-        !config
-            .permissions
-            .file_system_sandbox_policy()
-            .can_write_path_with_cwd(cwd.path(), cwd.path())
-    );
-    Ok(())
-}
-
-#[tokio::test]
 async fn implicit_builtin_workspace_profile_preserves_sandbox_workspace_write_settings()
 -> std::io::Result<()> {
     let codex_home = TempDir::new()?;
@@ -8451,7 +8414,7 @@ async fn test_load_config_rejects_legacy_ollama_chat_provider_with_helpful_error
 }
 
 #[tokio::test]
-async fn test_untrusted_project_gets_read_only_sandbox() -> anyhow::Result<()> {
+async fn test_untrusted_project_gets_workspace_write_sandbox() -> anyhow::Result<()> {
     let config_with_untrusted = r#"
 [projects."/tmp/test"]
 trust_level = "untrusted"
@@ -8473,7 +8436,18 @@ trust_level = "untrusted"
     )
     .await;
 
-    assert_eq!(resolution, SandboxPolicy::new_read_only_policy());
+    // Verify that untrusted projects get WorkspaceWrite (or ReadOnly on Windows due to downgrade)
+    if cfg!(target_os = "windows") {
+        assert!(
+            matches!(resolution, SandboxPolicy::ReadOnly { .. }),
+            "Expected ReadOnly on Windows, got {resolution:?}"
+        );
+    } else {
+        assert!(
+            matches!(resolution, SandboxPolicy::WorkspaceWrite { .. }),
+            "Expected WorkspaceWrite for untrusted project, got {resolution:?}"
+        );
+    }
 
     Ok(())
 }
@@ -8832,11 +8806,24 @@ async fn test_untrusted_project_gets_unless_trusted_approval_policy() -> anyhow:
         "Expected UnlessTrusted approval policy for untrusted project"
     );
 
-    assert_eq!(
-        config.legacy_sandbox_policy(),
-        SandboxPolicy::new_read_only_policy(),
-        "Expected ReadOnly sandbox for untrusted project"
-    );
+    // Verify that untrusted projects still get WorkspaceWrite sandbox (or ReadOnly on Windows)
+    if cfg!(target_os = "windows") {
+        assert!(
+            matches!(
+                &config.legacy_sandbox_policy(),
+                SandboxPolicy::ReadOnly { .. }
+            ),
+            "Expected ReadOnly on Windows"
+        );
+    } else {
+        assert!(
+            matches!(
+                &config.legacy_sandbox_policy(),
+                SandboxPolicy::WorkspaceWrite { .. }
+            ),
+            "Expected WorkspaceWrite sandbox for untrusted project"
+        );
+    }
 
     Ok(())
 }
