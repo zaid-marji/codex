@@ -62,7 +62,9 @@ fn thread_spawn_depth_increments_and_enforces_limit() {
 
 #[test]
 fn non_thread_spawn_subagents_default_to_depth_zero() {
-    let session_source = SessionSource::SubAgent(SubAgentSource::Review);
+    let session_source = SessionSource::SubAgent(SubAgentSource::Review {
+        parent_thread_id: None,
+    });
     assert_eq!(session_depth(&session_source), 0);
     assert_eq!(next_thread_spawn_depth(&session_source), 1);
     assert!(!exceeds_thread_spawn_depth_limit(

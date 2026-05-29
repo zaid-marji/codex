@@ -247,9 +247,10 @@ impl futures::Stream for NotifyAfterEventStream {
 
 #[test]
 fn build_subagent_headers_sets_other_subagent_label() {
-    let client = test_model_client(SessionSource::SubAgent(SubAgentSource::Other(
-        "memory_consolidation".to_string(),
-    )));
+    let client = test_model_client(SessionSource::SubAgent(SubAgentSource::Other {
+        label: "memory_consolidation".to_string(),
+        parent_thread_id: None,
+    }));
     let headers = client.build_subagent_headers();
     let value = headers
         .get(X_OPENAI_SUBAGENT_HEADER)

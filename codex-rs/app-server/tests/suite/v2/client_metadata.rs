@@ -297,7 +297,7 @@ async fn review_start_sends_fork_lineage_in_turn_metadata_for_thread_fork_v2() -
 }
 
 #[tokio::test]
-async fn turn_start_sends_subagent_lineage_after_cold_thread_resume_v2() -> Result<()> {
+async fn turn_start_sends_other_subagent_lineage_after_cold_thread_resume_v2() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
     let server = responses::start_mock_server().await;
@@ -327,12 +327,9 @@ async fn turn_start_sends_subagent_lineage_after_cold_thread_resume_v2() -> Resu
         "Saved subagent message",
         Some("mock_provider"),
         /*git_info*/ None,
-        SessionSource::SubAgent(SubAgentSource::ThreadSpawn {
-            parent_thread_id,
-            depth: 1,
-            agent_path: None,
-            agent_nickname: None,
-            agent_role: None,
+        SessionSource::SubAgent(SubAgentSource::Other {
+            label: "guardian".to_string(),
+            parent_thread_id: Some(parent_thread_id),
         }),
     )?;
 
@@ -386,7 +383,7 @@ async fn turn_start_sends_subagent_lineage_after_cold_thread_resume_v2() -> Resu
         metadata["parent_thread_id"].as_str(),
         Some(parent_thread_id_str.as_str())
     );
-    assert_eq!(metadata["subagent_kind"].as_str(), Some("thread_spawn"));
+    assert_eq!(metadata["subagent_kind"].as_str(), Some("guardian"));
     assert_eq!(metadata["thread_id"].as_str(), Some(thread.id.as_str()));
     assert_eq!(metadata["turn_id"].as_str(), Some(turn.id.as_str()));
     assert!(metadata.get("forked_from_thread_id").is_none());

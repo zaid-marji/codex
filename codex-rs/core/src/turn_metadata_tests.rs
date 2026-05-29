@@ -291,38 +291,59 @@ fn turn_metadata_state_includes_forked_thread_spawn_subagent_lineage() {
 }
 
 #[test]
-fn turn_metadata_state_includes_known_parent_for_other_subagent() {
+fn turn_metadata_state_includes_known_parent_for_non_thread_spawn_subagents_without_fork() {
     let temp_dir = TempDir::new().expect("temp dir");
     let cwd = temp_dir.path().abs();
     let permission_profile = PermissionProfile::read_only();
     let parent_thread_id =
         ThreadId::from_string("44444444-4444-4444-8444-444444444444").expect("thread id");
+    let sources = [
+        (
+            SubAgentSource::Review {
+                parent_thread_id: Some(parent_thread_id),
+            },
+            "review",
+        ),
+        (
+            SubAgentSource::Other {
+                label: "guardian".to_string(),
+                parent_thread_id: Some(parent_thread_id),
+            },
+            "guardian",
+        ),
+        (
+            SubAgentSource::Other {
+                label: "agent_job:job-1".to_string(),
+                parent_thread_id: Some(parent_thread_id),
+            },
+            "agent_job:job-1",
+        ),
+    ];
 
-    let state = TurnMetadataState::new(
-        "session-a".to_string(),
-        "thread-a".to_string(),
-        Some(parent_thread_id),
-        &SessionSource::SubAgent(SubAgentSource::Other("guardian".to_string())),
-        Some(ThreadSource::Subagent),
-        "turn-a".to_string(),
-        cwd,
-        &permission_profile,
-        WindowsSandboxLevel::Disabled,
-        /*enforce_managed_network*/ false,
-    );
+    for (subagent_source, subagent_kind) in sources {
+        let state = TurnMetadataState::new(
+            "session-a".to_string(),
+            "thread-a".to_string(),
+            /*forked_from_thread_id*/ None,
+            &SessionSource::SubAgent(subagent_source),
+            Some(ThreadSource::Subagent),
+            "turn-a".to_string(),
+            cwd.clone(),
+            &permission_profile,
+            WindowsSandboxLevel::Disabled,
+            /*enforce_managed_network*/ false,
+        );
 
-    let header = state.current_header_value().expect("header");
-    let json: Value = serde_json::from_str(&header).expect("json");
+        let header = state.current_header_value().expect("header");
+        let json: Value = serde_json::from_str(&header).expect("json");
 
-    assert_eq!(
-        json["forked_from_thread_id"].as_str(),
-        Some("44444444-4444-4444-8444-444444444444")
-    );
-    assert_eq!(
-        json["parent_thread_id"].as_str(),
-        Some("44444444-4444-4444-8444-444444444444")
-    );
-    assert_eq!(json["subagent_kind"].as_str(), Some("guardian"));
+        assert!(json.get("forked_from_thread_id").is_none());
+        assert_eq!(
+            json["parent_thread_id"].as_str(),
+            Some("44444444-4444-4444-8444-444444444444")
+        );
+        assert_eq!(json["subagent_kind"].as_str(), Some(subagent_kind));
+    }
 }
 
 #[test]

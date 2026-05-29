@@ -2418,7 +2418,9 @@ fn subagent_thread_started_review_serializes_expected_shape() {
             client_version: "1.0.0".to_string(),
             model: "gpt-5".to_string(),
             ephemeral: false,
-            subagent_source: SubAgentSource::Review,
+            subagent_source: SubAgentSource::Review {
+                parent_thread_id: None,
+            },
             created_at: 123,
         },
     ));
@@ -2496,7 +2498,9 @@ fn subagent_thread_started_memory_consolidation_serializes_expected_shape() {
             client_version: "1.0.0".to_string(),
             model: "gpt-5".to_string(),
             ephemeral: false,
-            subagent_source: SubAgentSource::MemoryConsolidation,
+            subagent_source: SubAgentSource::MemoryConsolidation {
+                parent_thread_id: None,
+            },
             created_at: 125,
         },
     ));
@@ -2522,7 +2526,10 @@ fn subagent_thread_started_other_serializes_expected_shape() {
             client_version: "1.0.0".to_string(),
             model: "gpt-5".to_string(),
             ephemeral: false,
-            subagent_source: SubAgentSource::Other("guardian".to_string()),
+            subagent_source: SubAgentSource::Other {
+                label: "guardian".to_string(),
+                parent_thread_id: None,
+            },
             created_at: 126,
         },
     ));
@@ -2534,17 +2541,23 @@ fn subagent_thread_started_other_serializes_expected_shape() {
 
 #[test]
 fn subagent_thread_started_other_serializes_explicit_parent_thread_id() {
+    let parent_thread_id =
+        codex_protocol::ThreadId::from_string("33333333-3333-4333-8333-333333333333")
+            .expect("valid thread id");
     let event = TrackEventRequest::ThreadInitialized(subagent_thread_started_event_request(
         SubAgentThreadStartedInput {
             session_id: "session-root".to_string(),
             thread_id: "thread-guardian".to_string(),
-            parent_thread_id: Some("parent-thread-guardian".to_string()),
+            parent_thread_id: None,
             product_client_id: "codex-tui".to_string(),
             client_name: "codex-tui".to_string(),
             client_version: "1.0.0".to_string(),
             model: "gpt-5".to_string(),
             ephemeral: false,
-            subagent_source: SubAgentSource::Other("guardian".to_string()),
+            subagent_source: SubAgentSource::Other {
+                label: "guardian".to_string(),
+                parent_thread_id: Some(parent_thread_id),
+            },
             created_at: 126,
         },
     ));
@@ -2553,7 +2566,7 @@ fn subagent_thread_started_other_serializes_explicit_parent_thread_id() {
     assert_eq!(payload["event_params"]["subagent_source"], "guardian");
     assert_eq!(
         payload["event_params"]["parent_thread_id"],
-        "parent-thread-guardian"
+        "33333333-3333-4333-8333-333333333333"
     );
 }
 
@@ -2574,7 +2587,9 @@ async fn subagent_thread_started_publishes_without_initialize() {
                     client_version: "1.0.0".to_string(),
                     model: "gpt-5".to_string(),
                     ephemeral: false,
-                    subagent_source: SubAgentSource::Review,
+                    subagent_source: SubAgentSource::Review {
+                        parent_thread_id: None,
+                    },
                     created_at: 127,
                 },
             )),
@@ -2718,7 +2733,9 @@ async fn subagent_tool_items_inherit_parent_connection_metadata() {
                     client_version: "1.0.0".to_string(),
                     model: "gpt-5".to_string(),
                     ephemeral: false,
-                    subagent_source: SubAgentSource::Review,
+                    subagent_source: SubAgentSource::Review {
+                        parent_thread_id: None,
+                    },
                     created_at: 128,
                 },
             )),

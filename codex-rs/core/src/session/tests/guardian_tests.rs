@@ -493,8 +493,10 @@ async fn guardian_allows_unified_exec_additional_permissions_requests_past_polic
 async fn process_compacted_history_preserves_separate_guardian_developer_message() {
     let (session, mut turn_context) = make_session_and_context().await;
     let guardian_policy = crate::guardian::guardian_policy_prompt();
-    let guardian_source =
-        SessionSource::SubAgent(SubAgentSource::Other(GUARDIAN_REVIEWER_NAME.to_string()));
+    let guardian_source = SessionSource::SubAgent(SubAgentSource::Other {
+        label: GUARDIAN_REVIEWER_NAME.to_string(),
+        parent_thread_id: None,
+    });
 
     {
         let mut state = session.state.lock().await;
@@ -689,9 +691,10 @@ async fn guardian_subagent_does_not_inherit_parent_exec_policy_rules() {
         mcp_manager,
         extensions: codex_extension_api::empty_extension_registry(),
         conversation_history: InitialHistory::New,
-        session_source: SessionSource::SubAgent(SubAgentSource::Other(
-            GUARDIAN_REVIEWER_NAME.to_string(),
-        )),
+        session_source: SessionSource::SubAgent(SubAgentSource::Other {
+            label: GUARDIAN_REVIEWER_NAME.to_string(),
+            parent_thread_id: None,
+        }),
         forked_from_thread_id: None,
         thread_source: None,
         agent_control: AgentControl::default(),

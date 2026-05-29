@@ -1056,7 +1056,9 @@ async fn thread_list_filters_by_subagent_variant() -> Result<()> {
         "Review",
         Some("mock_provider"),
         /*git_info*/ None,
-        CoreSessionSource::SubAgent(SubAgentSource::Review),
+        CoreSessionSource::SubAgent(SubAgentSource::Review {
+            parent_thread_id: None,
+        }),
     )?;
     let compact_id = create_fake_rollout_with_source(
         codex_home.path(),
@@ -1065,7 +1067,9 @@ async fn thread_list_filters_by_subagent_variant() -> Result<()> {
         "Compact",
         Some("mock_provider"),
         /*git_info*/ None,
-        CoreSessionSource::SubAgent(SubAgentSource::Compact),
+        CoreSessionSource::SubAgent(SubAgentSource::Compact {
+            parent_thread_id: None,
+        }),
     )?;
     let spawn_id = create_fake_rollout_with_source(
         codex_home.path(),
@@ -1089,7 +1093,10 @@ async fn thread_list_filters_by_subagent_variant() -> Result<()> {
         "Other",
         Some("mock_provider"),
         /*git_info*/ None,
-        CoreSessionSource::SubAgent(SubAgentSource::Other("custom".to_string())),
+        CoreSessionSource::SubAgent(SubAgentSource::Other {
+            label: "custom".to_string(),
+            parent_thread_id: None,
+        }),
     )?;
 
     let mut mcp = init_mcp(codex_home.path()).await?;

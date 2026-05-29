@@ -2531,12 +2531,18 @@ pub enum InternalSessionSource {
     MemoryConsolidation,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
+#[derive(Serialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "snake_case")]
 #[ts(rename_all = "snake_case")]
 pub enum SubAgentSource {
-    Review,
-    Compact,
+    Review {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        parent_thread_id: Option<ThreadId>,
+    },
+    Compact {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        parent_thread_id: Option<ThreadId>,
+    },
     ThreadSpawn {
         parent_thread_id: ThreadId,
         depth: i32,
@@ -2547,8 +2553,119 @@ pub enum SubAgentSource {
         #[serde(default, alias = "agent_type")]
         agent_role: Option<String>,
     },
+    MemoryConsolidation {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        parent_thread_id: Option<ThreadId>,
+    },
+    Other {
+        label: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        parent_thread_id: Option<ThreadId>,
+    },
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum DetailedSubAgentSource {
+    Review {
+        #[serde(default)]
+        parent_thread_id: Option<ThreadId>,
+    },
+    Compact {
+        #[serde(default)]
+        parent_thread_id: Option<ThreadId>,
+    },
+    ThreadSpawn {
+        parent_thread_id: ThreadId,
+        depth: i32,
+        #[serde(default)]
+        agent_path: Option<AgentPath>,
+        #[serde(default)]
+        agent_nickname: Option<String>,
+        #[serde(default, alias = "agent_type")]
+        agent_role: Option<String>,
+    },
+    MemoryConsolidation {
+        #[serde(default)]
+        parent_thread_id: Option<ThreadId>,
+    },
+    Other {
+        label: String,
+        #[serde(default)]
+        parent_thread_id: Option<ThreadId>,
+    },
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum LegacySubAgentSource {
+    Review,
+    Compact,
     MemoryConsolidation,
     Other(String),
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum SubAgentSourceWire {
+    Detailed(DetailedSubAgentSource),
+    Legacy(LegacySubAgentSource),
+}
+
+impl<'de> Deserialize<'de> for SubAgentSource {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(match SubAgentSourceWire::deserialize(deserializer)? {
+            SubAgentSourceWire::Detailed(source) => match source {
+                DetailedSubAgentSource::Review { parent_thread_id } => {
+                    Self::Review { parent_thread_id }
+                }
+                DetailedSubAgentSource::Compact { parent_thread_id } => {
+                    Self::Compact { parent_thread_id }
+                }
+                DetailedSubAgentSource::ThreadSpawn {
+                    parent_thread_id,
+                    depth,
+                    agent_path,
+                    agent_nickname,
+                    agent_role,
+                } => Self::ThreadSpawn {
+                    parent_thread_id,
+                    depth,
+                    agent_path,
+                    agent_nickname,
+                    agent_role,
+                },
+                DetailedSubAgentSource::MemoryConsolidation { parent_thread_id } => {
+                    Self::MemoryConsolidation { parent_thread_id }
+                }
+                DetailedSubAgentSource::Other {
+                    label,
+                    parent_thread_id,
+                } => Self::Other {
+                    label,
+                    parent_thread_id,
+                },
+            },
+            SubAgentSourceWire::Legacy(source) => match source {
+                LegacySubAgentSource::Review => Self::Review {
+                    parent_thread_id: None,
+                },
+                LegacySubAgentSource::Compact => Self::Compact {
+                    parent_thread_id: None,
+                },
+                LegacySubAgentSource::MemoryConsolidation => Self::MemoryConsolidation {
+                    parent_thread_id: None,
+                },
+                LegacySubAgentSource::Other(label) => Self::Other {
+                    label,
+                    parent_thread_id: None,
+                },
+            },
+        })
+    }
 }
 
 impl fmt::Display for SessionSource {
@@ -2658,9 +2775,9 @@ impl SessionSource {
 impl fmt::Display for SubAgentSource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SubAgentSource::Review => f.write_str("review"),
-            SubAgentSource::Compact => f.write_str("compact"),
-            SubAgentSource::MemoryConsolidation => f.write_str("memory_consolidation"),
+            SubAgentSource::Review { .. } => f.write_str("review"),
+            SubAgentSource::Compact { .. } => f.write_str("compact"),
+            SubAgentSource::MemoryConsolidation { .. } => f.write_str("memory_consolidation"),
             SubAgentSource::ThreadSpawn {
                 parent_thread_id,
                 depth,
@@ -2668,7 +2785,7 @@ impl fmt::Display for SubAgentSource {
             } => {
                 write!(f, "thread_spawn_{parent_thread_id}_d{depth}")
             }
-            SubAgentSource::Other(other) => f.write_str(other),
+            SubAgentSource::Other { label, .. } => f.write_str(label),
         }
     }
 }
@@ -2676,24 +2793,49 @@ impl fmt::Display for SubAgentSource {
 impl SubAgentSource {
     pub fn kind(&self) -> &str {
         match self {
-            SubAgentSource::Review => "review",
-            SubAgentSource::Compact => "compact",
+            SubAgentSource::Review { .. } => "review",
+            SubAgentSource::Compact { .. } => "compact",
             SubAgentSource::ThreadSpawn { .. } => "thread_spawn",
-            SubAgentSource::MemoryConsolidation => "memory_consolidation",
-            SubAgentSource::Other(other) => other,
+            SubAgentSource::MemoryConsolidation { .. } => "memory_consolidation",
+            SubAgentSource::Other { label, .. } => label,
         }
     }
 
     pub fn parent_thread_id(&self) -> Option<ThreadId> {
         match self {
+            SubAgentSource::Review { parent_thread_id }
+            | SubAgentSource::Compact { parent_thread_id }
+            | SubAgentSource::MemoryConsolidation { parent_thread_id }
+            | SubAgentSource::Other {
+                parent_thread_id, ..
+            } => *parent_thread_id,
             SubAgentSource::ThreadSpawn {
                 parent_thread_id, ..
             } => Some(*parent_thread_id),
-            SubAgentSource::Review
-            | SubAgentSource::Compact
-            | SubAgentSource::MemoryConsolidation
-            | SubAgentSource::Other(_) => None,
         }
+    }
+
+    pub fn with_parent_thread_id(mut self, parent_thread_id: ThreadId) -> Self {
+        match &mut self {
+            SubAgentSource::Review {
+                parent_thread_id: source_parent_thread_id,
+            }
+            | SubAgentSource::Compact {
+                parent_thread_id: source_parent_thread_id,
+            }
+            | SubAgentSource::MemoryConsolidation {
+                parent_thread_id: source_parent_thread_id,
+            }
+            | SubAgentSource::Other {
+                parent_thread_id: source_parent_thread_id,
+                ..
+            } => *source_parent_thread_id = Some(parent_thread_id),
+            SubAgentSource::ThreadSpawn {
+                parent_thread_id: source_parent_thread_id,
+                ..
+            } => *source_parent_thread_id = parent_thread_id,
+        }
+        self
     }
 }
 
@@ -4018,6 +4160,100 @@ mod tests {
     }
 
     #[test]
+    fn subagent_source_deserializes_legacy_parentless_variants() -> Result<()> {
+        assert_eq!(
+            serde_json::from_value::<SubAgentSource>(json!("review"))?,
+            SubAgentSource::Review {
+                parent_thread_id: None,
+            }
+        );
+        assert_eq!(
+            serde_json::from_value::<SubAgentSource>(json!("compact"))?,
+            SubAgentSource::Compact {
+                parent_thread_id: None,
+            }
+        );
+        assert_eq!(
+            serde_json::from_value::<SubAgentSource>(json!("memory_consolidation"))?,
+            SubAgentSource::MemoryConsolidation {
+                parent_thread_id: None,
+            }
+        );
+        assert_eq!(
+            serde_json::from_value::<SubAgentSource>(json!({ "other": "guardian" }))?,
+            SubAgentSource::Other {
+                label: "guardian".to_string(),
+                parent_thread_id: None,
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn subagent_source_round_trips_parented_non_thread_spawn_variants() -> Result<()> {
+        let parent_thread_id = ThreadId::from_string("11111111-1111-4111-8111-111111111111")?;
+        let cases = [
+            (
+                SubAgentSource::Review {
+                    parent_thread_id: Some(parent_thread_id),
+                },
+                json!({
+                    "review": {
+                        "parent_thread_id": "11111111-1111-4111-8111-111111111111",
+                    }
+                }),
+            ),
+            (
+                SubAgentSource::Other {
+                    label: "guardian".to_string(),
+                    parent_thread_id: Some(parent_thread_id),
+                },
+                json!({
+                    "other": {
+                        "label": "guardian",
+                        "parent_thread_id": "11111111-1111-4111-8111-111111111111",
+                    }
+                }),
+            ),
+        ];
+
+        for (source, source_json) in cases {
+            assert_eq!(serde_json::to_value(&source)?, source_json);
+            assert_eq!(
+                serde_json::from_value::<SubAgentSource>(source_json)?,
+                source
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn subagent_source_thread_spawn_serialization_is_unchanged() -> Result<()> {
+        let parent_thread_id = ThreadId::from_string("22222222-2222-4222-8222-222222222222")?;
+        let source = SubAgentSource::ThreadSpawn {
+            parent_thread_id,
+            depth: 1,
+            agent_path: None,
+            agent_nickname: None,
+            agent_role: None,
+        };
+
+        assert_eq!(
+            serde_json::to_value(source)?,
+            json!({
+                "thread_spawn": {
+                    "parent_thread_id": "22222222-2222-4222-8222-222222222222",
+                    "depth": 1,
+                    "agent_path": null,
+                    "agent_nickname": null,
+                    "agent_role": null,
+                }
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
     fn session_source_restriction_product_defaults_non_subagent_sources_to_codex() {
         assert_eq!(
             SessionSource::Cli.restriction_product(),
@@ -4044,7 +4280,10 @@ mod tests {
     #[test]
     fn session_source_restriction_product_does_not_guess_subagent_products() {
         assert_eq!(
-            SessionSource::SubAgent(SubAgentSource::Review).restriction_product(),
+            SessionSource::SubAgent(SubAgentSource::Review {
+                parent_thread_id: None
+            })
+            .restriction_product(),
             None
         );
         assert_eq!(

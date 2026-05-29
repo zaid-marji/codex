@@ -1059,13 +1059,7 @@ pub(crate) fn subagent_thread_started_event_request(
 }
 
 pub(crate) fn subagent_source_name(subagent_source: &SubAgentSource) -> String {
-    match subagent_source {
-        SubAgentSource::Review => "review".to_string(),
-        SubAgentSource::Compact => "compact".to_string(),
-        SubAgentSource::ThreadSpawn { .. } => "thread_spawn".to_string(),
-        SubAgentSource::MemoryConsolidation => "memory_consolidation".to_string(),
-        SubAgentSource::Other(other) => other.clone(),
-    }
+    subagent_source.kind().to_string()
 }
 
 pub(crate) fn subagent_parent_thread_id(subagent_source: &SubAgentSource) -> Option<String> {

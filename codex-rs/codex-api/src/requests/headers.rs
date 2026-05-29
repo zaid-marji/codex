@@ -18,15 +18,15 @@ pub(crate) fn subagent_header(source: &Option<SessionSource>) -> Option<String> 
         return None;
     };
     match sub {
-        codex_protocol::protocol::SubAgentSource::Review => Some("review".to_string()),
-        codex_protocol::protocol::SubAgentSource::Compact => Some("compact".to_string()),
-        codex_protocol::protocol::SubAgentSource::MemoryConsolidation => {
+        codex_protocol::protocol::SubAgentSource::Review { .. } => Some("review".to_string()),
+        codex_protocol::protocol::SubAgentSource::Compact { .. } => Some("compact".to_string()),
+        codex_protocol::protocol::SubAgentSource::MemoryConsolidation { .. } => {
             Some("memory_consolidation".to_string())
         }
         codex_protocol::protocol::SubAgentSource::ThreadSpawn { .. } => {
             Some("collab_spawn".to_string())
         }
-        codex_protocol::protocol::SubAgentSource::Other(label) => Some(label.clone()),
+        codex_protocol::protocol::SubAgentSource::Other { label, .. } => Some(label.clone()),
     }
 }
 

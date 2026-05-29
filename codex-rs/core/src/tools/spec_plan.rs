@@ -297,7 +297,7 @@ fn goal_tools_enabled(turn_context: &TurnContext) -> bool {
     turn_context.goal_tools_enabled()
         && !matches!(
             turn_context.session_source,
-            SessionSource::SubAgent(SubAgentSource::Review)
+            SessionSource::SubAgent(SubAgentSource::Review { .. })
         )
 }
 
@@ -309,7 +309,7 @@ fn agent_jobs_worker_tools_enabled(turn_context: &TurnContext) -> bool {
     agent_jobs_tools_enabled(turn_context)
         && matches!(
             &turn_context.session_source,
-            SessionSource::SubAgent(SubAgentSource::Other(label))
+            SessionSource::SubAgent(SubAgentSource::Other { label, .. })
                 if label.starts_with("agent_job:")
         )
 }

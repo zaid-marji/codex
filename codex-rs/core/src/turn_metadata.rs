@@ -278,18 +278,16 @@ impl TurnMetadataState {
             )
             .to_string(),
         );
-        let (parent_thread_id, subagent_kind) = match session_source {
-            SessionSource::SubAgent(subagent_source) => (
-                subagent_source.parent_thread_id().or(forked_from_thread_id),
-                Some(subagent_source.kind().to_string()),
-            ),
+        let parent_thread_id = session_source.parent_thread_id();
+        let subagent_kind = match session_source {
+            SessionSource::SubAgent(subagent_source) => Some(subagent_source.kind().to_string()),
             SessionSource::Cli
             | SessionSource::VSCode
             | SessionSource::Exec
             | SessionSource::Mcp
             | SessionSource::Custom(_)
             | SessionSource::Internal(_)
-            | SessionSource::Unknown => (None, None),
+            | SessionSource::Unknown => None,
         };
         let base_metadata = TurnMetadataBag {
             request_kind: None,

@@ -170,7 +170,9 @@ async fn run_codex_thread_interactive_respects_pre_cancelled_spawn() {
             parent_session,
             parent_ctx,
             cancel_token,
-            SubAgentSource::Review,
+            SubAgentSource::Review {
+                parent_thread_id: None,
+            },
             /*initial_history*/ None,
         ),
     )

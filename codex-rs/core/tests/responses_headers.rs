@@ -82,7 +82,9 @@ async fn responses_stream_includes_subagent_header_on_review() {
 
     let thread_id = ThreadId::new();
     let auth_mode = TelemetryAuthMode::Chatgpt;
-    let session_source = SessionSource::SubAgent(SubAgentSource::Review);
+    let session_source = SessionSource::SubAgent(SubAgentSource::Review {
+        parent_thread_id: None,
+    });
     let model_info =
         codex_core::test_support::construct_model_info_offline(model.as_str(), &config);
     let session_telemetry = SessionTelemetry::new(
@@ -209,7 +211,10 @@ async fn responses_stream_includes_subagent_header_on_other() {
 
     let thread_id = ThreadId::new();
     let auth_mode = TelemetryAuthMode::Chatgpt;
-    let session_source = SessionSource::SubAgent(SubAgentSource::Other("my-task".to_string()));
+    let session_source = SessionSource::SubAgent(SubAgentSource::Other {
+        label: "my-task".to_string(),
+        parent_thread_id: None,
+    });
     let model_info =
         codex_core::test_support::construct_model_info_offline(model.as_str(), &config);
 
@@ -326,8 +331,10 @@ async fn responses_respects_model_info_overrides_from_config() {
         codex_core::test_support::auth_manager_from_auth(CodexAuth::from_api_key("Test API Key"))
             .auth_mode()
             .map(TelemetryAuthMode::from);
-    let session_source =
-        SessionSource::SubAgent(SubAgentSource::Other("override-check".to_string()));
+    let session_source = SessionSource::SubAgent(SubAgentSource::Other {
+        label: "override-check".to_string(),
+        parent_thread_id: None,
+    });
     let model_info =
         codex_core::test_support::construct_model_info_offline(model.as_str(), &config);
     let session_telemetry = SessionTelemetry::new(

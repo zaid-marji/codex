@@ -604,7 +604,10 @@ async fn spawn_guardian_review_session(
         Arc::clone(&params.parent_session),
         Arc::clone(&params.parent_turn),
         cancel_token.clone(),
-        SubAgentSource::Other(GUARDIAN_REVIEWER_NAME.to_string()),
+        SubAgentSource::Other {
+            label: GUARDIAN_REVIEWER_NAME.to_string(),
+            parent_thread_id: Some(params.parent_session.conversation_id),
+        },
         initial_history,
     ))
     .await?;
