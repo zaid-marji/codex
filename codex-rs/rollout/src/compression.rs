@@ -54,11 +54,6 @@ pub(crate) fn materialize_rollout_for_append_blocking(path: &Path) -> io::Result
     materialize::for_append_blocking(path)
 }
 
-/// Returns the compressed `.jsonl.zst` path for a rollout path.
-pub(crate) fn compressed_rollout_path(path: &Path) -> PathBuf {
-    path::compressed_rollout_path(path)
-}
-
 /// Returns the plain `.jsonl` path for a plain or compressed rollout path.
 pub fn plain_rollout_path(path: &Path) -> PathBuf {
     path::plain_rollout_path(path)
@@ -129,10 +124,6 @@ mod worker {
     use std::time::Instant;
     use std::time::SystemTime;
 
-    #[cfg(unix)]
-    use std::os::unix::fs::OpenOptionsExt;
-    #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
     use tracing::debug;
     use tracing::info;
     use tracing::warn;
@@ -410,42 +401,12 @@ mod worker {
         }
     }
 
-    pub(super) fn encode_zstd(
-        source: &Path,
-        destination: &Path,
-        permissions: &Permissions,
-    ) -> io::Result<()> {
-        let output = create_file_with_permissions(destination, permissions)?;
-        encode_zstd_to_writer(source, output)
-    }
-
     fn encode_zstd_to_writer(source: &Path, output: impl Write) -> io::Result<()> {
         let mut input = File::open(source)?;
         let mut encoder = zstd::stream::write::Encoder::new(output, COMPRESSION_LEVEL)?;
         io::copy(&mut input, &mut encoder)?;
         encoder.finish()?;
         Ok(())
-    }
-
-    #[cfg(unix)]
-    fn create_file_with_permissions(path: &Path, permissions: &Permissions) -> io::Result<File> {
-        let file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(permissions.mode() & 0o7777)
-            .open(path)?;
-        file.set_permissions(permissions.clone())?;
-        Ok(file)
-    }
-
-    #[cfg(not(unix))]
-    fn create_file_with_permissions(path: &Path, permissions: &Permissions) -> io::Result<File> {
-        let file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(path)?;
-        file.set_permissions(permissions.clone())?;
-        Ok(file)
     }
 
     fn verify_zstd(path: &Path) -> io::Result<()> {
