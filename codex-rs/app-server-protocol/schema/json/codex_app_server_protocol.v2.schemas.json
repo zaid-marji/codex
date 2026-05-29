@@ -13059,54 +13059,12 @@
     "SubAgentSource": {
       "oneOf": [
         {
-          "additionalProperties": false,
-          "properties": {
-            "review": {
-              "properties": {
-                "parent_thread_id": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/definitions/ThreadId"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "type": "object"
-            }
-          },
-          "required": [
-            "review"
+          "enum": [
+            "review",
+            "compact",
+            "memory_consolidation"
           ],
-          "title": "ReviewSubAgentSource",
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "compact": {
-              "properties": {
-                "parent_thread_id": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/definitions/ThreadId"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "type": "object"
-            }
-          },
-          "required": [
-            "compact"
-          ],
-          "title": "CompactSubAgentSource",
-          "type": "object"
+          "type": "string"
         },
         {
           "additionalProperties": false,
@@ -13162,51 +13120,8 @@
         {
           "additionalProperties": false,
           "properties": {
-            "memory_consolidation": {
-              "properties": {
-                "parent_thread_id": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/definitions/ThreadId"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "type": "object"
-            }
-          },
-          "required": [
-            "memory_consolidation"
-          ],
-          "title": "MemoryConsolidationSubAgentSource",
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
             "other": {
-              "properties": {
-                "label": {
-                  "type": "string"
-                },
-                "parent_thread_id": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/definitions/ThreadId"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "required": [
-                "label"
-              ],
-              "type": "object"
+              "type": "string"
             }
           },
           "required": [

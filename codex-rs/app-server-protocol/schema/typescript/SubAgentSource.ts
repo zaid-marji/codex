@@ -4,4 +4,4 @@
 import type { AgentPath } from "./AgentPath";
 import type { ThreadId } from "./ThreadId";
 
-export type SubAgentSource = { "review": { parent_thread_id?: ThreadId | null, } } | { "compact": { parent_thread_id?: ThreadId | null, } } | { "thread_spawn": { parent_thread_id: ThreadId, depth: number, agent_path: AgentPath | null, agent_nickname: string | null, agent_role: string | null, } } | { "memory_consolidation": { parent_thread_id?: ThreadId | null, } } | { "other": { label: string, parent_thread_id?: ThreadId | null, } };
+export type SubAgentSource = "review" | "compact" | { "thread_spawn": { parent_thread_id: ThreadId, depth: number, agent_path: AgentPath | null, agent_nickname: string | null, agent_role: string | null, } } | "memory_consolidation" | { "other": string };

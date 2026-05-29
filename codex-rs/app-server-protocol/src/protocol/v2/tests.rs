@@ -29,6 +29,8 @@ use codex_protocol::protocol::AgentStatus as CoreAgentStatus;
 use codex_protocol::protocol::AskForApproval as CoreAskForApproval;
 use codex_protocol::protocol::GranularApprovalConfig as CoreGranularApprovalConfig;
 use codex_protocol::protocol::NetworkAccess as CoreNetworkAccess;
+use codex_protocol::protocol::SessionSource as CoreSessionSource;
+use codex_protocol::protocol::SubAgentSource as CoreSubAgentSource;
 use codex_protocol::request_permissions::RequestPermissionProfile as CoreRequestPermissionProfile;
 use codex_protocol::user_input::UserInput as CoreUserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
@@ -55,6 +57,38 @@ fn absolute_path(path: &str) -> AbsolutePathBuf {
 
 fn test_absolute_path() -> AbsolutePathBuf {
     absolute_path("readable")
+}
+
+#[test]
+fn subagent_session_source_preserves_legacy_v2_wire_shape() {
+    let parent_thread_id =
+        codex_protocol::ThreadId::from_string("11111111-1111-4111-8111-111111111111")
+            .expect("valid thread id");
+    let review_source =
+        SessionSource::from(CoreSessionSource::SubAgent(CoreSubAgentSource::Review {
+            parent_thread_id: Some(parent_thread_id),
+        }));
+    let guardian_source =
+        SessionSource::from(CoreSessionSource::SubAgent(CoreSubAgentSource::Other {
+            label: "guardian".to_string(),
+            parent_thread_id: Some(parent_thread_id),
+        }));
+
+    assert_eq!(
+        serde_json::to_value(&review_source).expect("serialize review source"),
+        json!({ "subAgent": "review" })
+    );
+    assert_eq!(
+        serde_json::to_value(&guardian_source).expect("serialize guardian source"),
+        json!({ "subAgent": { "other": "guardian" } })
+    );
+    assert_eq!(
+        CoreSessionSource::from(guardian_source),
+        CoreSessionSource::SubAgent(CoreSubAgentSource::Other {
+            label: "guardian".to_string(),
+            parent_thread_id: None,
+        })
+    );
 }
 
 #[test]

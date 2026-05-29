@@ -75,7 +75,7 @@ pub(crate) async fn read_summary_from_rollout(
         model_provider,
         cwd: session_meta.cwd,
         cli_version: session_meta.cli_version,
-        source: session_meta.source,
+        source: session_meta.source.into(),
         git_info,
     })
 }
@@ -124,7 +124,7 @@ fn extract_conversation_summary(
         model_provider,
         cwd: session_meta.cwd.clone(),
         cli_version: session_meta.cli_version.clone(),
-        source: session_meta.source.clone(),
+        source: session_meta.source.clone().into(),
         git_info,
     })
 }

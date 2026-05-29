@@ -13,7 +13,6 @@ use codex_protocol::protocol::FileChange;
 pub use codex_protocol::protocol::GitSha;
 use codex_protocol::protocol::ReviewDecision;
 use codex_protocol::protocol::SandboxPolicy;
-use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::TurnAbortReason;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use schemars::JsonSchema;
@@ -22,6 +21,7 @@ use serde::Serialize;
 use ts_rs::TS;
 
 use crate::protocol::common::AuthMode;
+use crate::protocol::session_source::SessionSource;
 use crate::protocol::v2::ForcedChatgptWorkspaceIds;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema, TS)]
