@@ -75,12 +75,10 @@ sandbox_mode = "workspace-write"
     let ConfigReadResponse {
         config,
         origins,
-        user_config_version,
         layers,
     } = to_response(resp)?;
 
     assert_eq!(config.model.as_deref(), Some("gpt-user"));
-    assert!(user_config_version.is_some());
     assert_eq!(
         origins.get("model").expect("origin").name,
         ConfigLayerSource::User {
@@ -735,7 +733,7 @@ model = "gpt-old"
     )
     .await??;
     let read: ConfigReadResponse = to_response(read_resp)?;
-    let expected_version = read.user_config_version.clone();
+    let expected_version = read.origins.get("model").map(|m| m.version.clone());
 
     let write_id = mcp
         .send_config_value_write_request(ConfigValueWriteParams {
@@ -771,68 +769,6 @@ model = "gpt-old"
     .await??;
     let verify: ConfigReadResponse = to_response(verify_resp)?;
     assert_eq!(verify.config.model.as_deref(), Some("gpt-new"));
-
-    Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn config_value_write_accepts_user_config_version_when_project_override_is_effective()
--> Result<()> {
-    let codex_home = TempDir::new()?;
-    let workspace = TempDir::new()?;
-    let project_config_dir = workspace.path().join(".codex");
-    std::fs::create_dir_all(&project_config_dir)?;
-    write_config(
-        &codex_home,
-        r#"
-model = "gpt-base"
-"#,
-    )?;
-    std::fs::write(
-        project_config_dir.join("config.toml"),
-        "model = \"gpt-project\"\n",
-    )?;
-    std::fs::write(
-        project_config_dir.join("config.override.toml"),
-        "model = \"gpt-override\"\n",
-    )?;
-    set_project_trust_level(codex_home.path(), workspace.path(), TrustLevel::Trusted)?;
-
-    let mut mcp = McpProcess::new(codex_home.path()).await?;
-    timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
-
-    let read_id = mcp
-        .send_config_read_request(ConfigReadParams {
-            include_layers: false,
-            cwd: Some(workspace.path().to_string_lossy().into_owned()),
-        })
-        .await?;
-    let read_resp: JSONRPCResponse = timeout(
-        DEFAULT_READ_TIMEOUT,
-        mcp.read_stream_until_response_message(RequestId::Integer(read_id)),
-    )
-    .await??;
-    let read: ConfigReadResponse = to_response(read_resp)?;
-    let expected_version = read.user_config_version.clone();
-
-    let write_id = mcp
-        .send_config_value_write_request(ConfigValueWriteParams {
-            file_path: None,
-            key_path: "model".to_string(),
-            value: json!("gpt-new-base"),
-            merge_strategy: MergeStrategy::Replace,
-            expected_version,
-        })
-        .await?;
-    let write_resp: JSONRPCResponse = timeout(
-        DEFAULT_READ_TIMEOUT,
-        mcp.read_stream_until_response_message(RequestId::Integer(write_id)),
-    )
-    .await??;
-    let write: ConfigWriteResponse = to_response(write_resp)?;
-
-    assert_eq!(write.status, WriteStatus::Ok);
-    assert!(write.overridden_metadata.is_none());
 
     Ok(())
 }

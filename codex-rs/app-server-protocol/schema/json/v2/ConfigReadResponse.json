@@ -838,12 +838,6 @@
         "$ref": "#/definitions/ConfigLayerMetadata"
       },
       "type": "object"
-    },
-    "userConfigVersion": {
-      "type": [
-        "string",
-        "null"
-      ]
     }
   },
   "required": [

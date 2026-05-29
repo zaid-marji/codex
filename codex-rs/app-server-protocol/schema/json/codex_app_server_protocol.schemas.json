@@ -7771,12 +7771,6 @@
               "$ref": "#/definitions/v2/ConfigLayerMetadata"
             },
             "type": "object"
-          },
-          "userConfigVersion": {
-            "type": [
-              "string",
-              "null"
-            ]
           }
         },
         "required": [

@@ -304,8 +304,8 @@ impl ConfigLayerStack {
     /// Returns all user config layers in the requested precedence order.
     ///
     /// With profile-v2 enabled, `LowestPrecedenceFirst` returns the base user
-    /// config, then profile overlay, while `HighestPrecedenceFirst` returns
-    /// that order in reverse.
+    /// config before the profile overlay, while `HighestPrecedenceFirst` returns
+    /// the profile overlay before the base user config.
     pub fn get_user_layers(
         &self,
         ordering: ConfigLayerStackOrdering,
@@ -313,14 +313,14 @@ impl ConfigLayerStack {
     ) -> Vec<&ConfigLayerEntry> {
         self.get_layers(ordering, include_disabled)
             .into_iter()
-            .filter(|layer| is_user_config_layer(&layer.name))
+            .filter(|layer| matches!(layer.name, ConfigLayerSource::User { .. }))
             .collect()
     }
 
     /// Returns the merged config from enabled user layers only.
     ///
-    /// When profile config is active, this includes the base user config, then
-    /// the profile override config.
+    /// When profile config is active, this includes the base user config followed
+    /// by the profile override config.
     pub fn effective_user_config(&self) -> Option<TomlValue> {
         let user_layers = self.get_user_layers(
             ConfigLayerStackOrdering::LowestPrecedenceFirst,
@@ -375,49 +375,71 @@ impl ConfigLayerStack {
             user_config,
         );
 
-        self.with_user_layer(user_layer, |layer| {
+        let mut layers = self.layers.clone();
+        if let Some(index) = layers.iter().position(|layer| {
             matches!(
                 &layer.name,
                 ConfigLayerSource::User { file, .. } if file == config_toml
             )
-        })
+        }) {
+            layers.remove(index);
+        }
+        match layers
+            .iter()
+            .position(|layer| layer.name.precedence() > user_layer.name.precedence())
+        {
+            Some(index) => layers.insert(index, user_layer),
+            None => layers.push(user_layer),
+        }
+        let user_layer_index = layers.iter().enumerate().rev().find_map(|(index, layer)| {
+            if matches!(layer.name, ConfigLayerSource::User { .. }) {
+                Some(index)
+            } else {
+                None
+            }
+        });
+        Self {
+            layers,
+            user_layer_index,
+            requirements: self.requirements.clone(),
+            requirements_toml: self.requirements_toml.clone(),
+            ignore_user_and_project_exec_policy_rules: self
+                .ignore_user_and_project_exec_policy_rules,
+            startup_warnings: self.startup_warnings.clone(),
+        }
     }
 
     /// Returns a new stack with the user layer copied from `other`, preserving
     /// every non-user layer already present in this stack.
     pub fn with_user_layer_from(&self, other: &Self) -> Self {
+        let user_layers = other
+            .layers
+            .iter()
+            .filter(|layer| matches!(layer.name, ConfigLayerSource::User { .. }))
+            .cloned()
+            .collect::<Vec<_>>();
         let mut layers = self
             .layers
             .iter()
-            .filter(|layer| !is_user_config_layer(&layer.name))
+            .filter(|layer| !matches!(layer.name, ConfigLayerSource::User { .. }))
             .cloned()
             .collect::<Vec<_>>();
-        for user_layer in other
-            .layers
-            .iter()
-            .filter(|layer| is_user_config_layer(&layer.name))
-            .cloned()
-        {
-            insert_user_layer(&mut layers, user_layer);
+        for user_layer in user_layers {
+            match layers
+                .iter()
+                .position(|layer| layer.name.precedence() > user_layer.name.precedence())
+            {
+                Some(index) => layers.insert(index, user_layer),
+                None => layers.push(user_layer),
+            }
         }
-        self.with_layers(layers)
-    }
-
-    fn with_user_layer(
-        &self,
-        user_layer: ConfigLayerEntry,
-        matches_existing: impl Fn(&ConfigLayerEntry) -> bool,
-    ) -> Self {
-        let mut layers = self.layers.clone();
-        if let Some(index) = layers.iter().position(matches_existing) {
-            layers.remove(index);
-        }
-        insert_user_layer(&mut layers, user_layer);
-        self.with_layers(layers)
-    }
-
-    fn with_layers(&self, layers: Vec<ConfigLayerEntry>) -> Self {
-        let user_layer_index = active_user_layer_index(&layers);
+        let user_layer_index = layers.iter().enumerate().rev().find_map(|(index, layer)| {
+            if matches!(layer.name, ConfigLayerSource::User { .. }) {
+                Some(index)
+            } else {
+                None
+            }
+        });
         Self {
             layers,
             user_layer_index,
@@ -492,26 +514,6 @@ impl ConfigLayerStack {
     }
 }
 
-fn is_user_config_layer(layer: &ConfigLayerSource) -> bool {
-    matches!(layer, ConfigLayerSource::User { .. })
-}
-
-fn insert_user_layer(layers: &mut Vec<ConfigLayerEntry>, user_layer: ConfigLayerEntry) {
-    let index = layers
-        .iter()
-        .position(|layer| layer.name.precedence() > user_layer.name.precedence());
-    match index {
-        Some(index) => layers.insert(index, user_layer),
-        None => layers.push(user_layer),
-    }
-}
-
-fn active_user_layer_index(layers: &[ConfigLayerEntry]) -> Option<usize> {
-    layers
-        .iter()
-        .rposition(|layer| matches!(layer.name, ConfigLayerSource::User { .. }))
-}
-
 /// Ensures precedence ordering of config layers is correct. Returns the index
 /// of the active user config layer, if any.
 fn verify_layer_ordering(layers: &[ConfigLayerEntry]) -> std::io::Result<Option<usize>> {
@@ -526,36 +528,29 @@ fn verify_layer_ordering(layers: &[ConfigLayerEntry]) -> std::io::Result<Option<
     // further verify that project layers are ordered from root to cwd. Multiple
     // user layers are allowed so a profile override can layer on top of the base
     // user config.
-    let mut previous_project_layer: Option<(&AbsolutePathBuf, bool)> = None;
-    for layer in layers {
-        let current_project_layer = match &layer.name {
-            ConfigLayerSource::Project { dot_codex_folder } => Some((dot_codex_folder, false)),
-            ConfigLayerSource::ProjectOverride { dot_codex_folder } => {
-                Some((dot_codex_folder, true))
-            }
-            _ => None,
-        };
-        if let Some((current_project_dot_codex_folder, current_is_override)) = current_project_layer
-        {
-            if let Some((previous, previous_is_override)) = previous_project_layer {
-                if previous == current_project_dot_codex_folder {
-                    if previous_is_override || !current_is_override {
-                        return Err(std::io::Error::new(
-                            std::io::ErrorKind::InvalidData,
-                            "project layers are not ordered from config.toml to config.override.toml",
-                        ));
-                    }
-                } else {
+    let mut user_layer_index: Option<usize> = None;
+    let mut previous_project_dot_codex_folder: Option<&AbsolutePathBuf> = None;
+    for (index, layer) in layers.iter().enumerate() {
+        if matches!(layer.name, ConfigLayerSource::User { .. }) {
+            user_layer_index = Some(index);
+        }
+
+        match &layer.name {
+            ConfigLayerSource::Project {
+                dot_codex_folder: current_project_dot_codex_folder,
+            } => {
+                if let Some(previous) = previous_project_dot_codex_folder {
                     let Some(parent) = previous.as_path().parent() else {
                         return Err(std::io::Error::new(
                             std::io::ErrorKind::InvalidData,
                             "project layer has no parent directory",
                         ));
                     };
-                    if !current_project_dot_codex_folder
-                        .as_path()
-                        .ancestors()
-                        .any(|ancestor| ancestor == parent)
+                    if previous == current_project_dot_codex_folder
+                        || !current_project_dot_codex_folder
+                            .as_path()
+                            .ancestors()
+                            .any(|ancestor| ancestor == parent)
                     {
                         return Err(std::io::Error::new(
                             std::io::ErrorKind::InvalidData,
@@ -563,12 +558,21 @@ fn verify_layer_ordering(layers: &[ConfigLayerEntry]) -> std::io::Result<Option<
                         ));
                     }
                 }
+                previous_project_dot_codex_folder = Some(current_project_dot_codex_folder);
             }
-            previous_project_layer = Some((current_project_dot_codex_folder, current_is_override));
+            ConfigLayerSource::ProjectOverride { dot_codex_folder } => {
+                if previous_project_dot_codex_folder != Some(dot_codex_folder) {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "project override layer must follow its project layer",
+                    ));
+                }
+            }
+            _ => {}
         }
     }
 
-    Ok(active_user_layer_index(layers))
+    Ok(user_layer_index)
 }
 
 #[cfg(test)]

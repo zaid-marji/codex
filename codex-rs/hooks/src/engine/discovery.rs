@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -93,7 +92,6 @@ pub(crate) fn discover_handlers(
             policy,
         );
 
-        let mut loaded_hooks_json_folders = HashSet::new();
         for layer in config_layer_stack.get_layers(
             ConfigLayerStackOrdering::LowestPrecedenceFirst,
             /*include_disabled*/ false,
@@ -113,14 +111,10 @@ pub(crate) fn discover_handlers(
             if !policy.allows(&policy_source) {
                 continue;
             }
-            let hooks_config_folder = layer.hooks_config_folder();
-            let json_hooks = if hooks_config_folder
-                .as_ref()
-                .is_some_and(|folder| loaded_hooks_json_folders.insert(folder.clone()))
-            {
-                load_hooks_json(hooks_config_folder.as_deref(), &mut warnings)
-            } else {
+            let json_hooks = if matches!(layer.name, ConfigLayerSource::ProjectOverride { .. }) {
                 None
+            } else {
+                load_hooks_json(layer.hooks_config_folder().as_deref(), &mut warnings)
             };
             let toml_hooks = load_toml_hooks_from_layer(layer, &mut warnings);
 

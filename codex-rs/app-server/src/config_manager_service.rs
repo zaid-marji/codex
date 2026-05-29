@@ -137,9 +137,6 @@ impl ConfigManager {
         Ok(ConfigReadResponse {
             config,
             origins: layers.origins(),
-            user_config_version: layers
-                .get_active_user_layer()
-                .map(|layer| layer.version.clone()),
             layers: params.include_layers.then(|| {
                 layers
                     .get_layers(

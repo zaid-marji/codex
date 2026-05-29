@@ -294,7 +294,7 @@ fn skill_roots_from_layer_stack_inner(
         };
 
         match &layer.name {
-            ConfigLayerSource::Project { .. } | ConfigLayerSource::ProjectOverride { .. } => {
+            ConfigLayerSource::Project { .. } => {
                 if let Some(repo_fs) = &repo_fs {
                     roots.push(SkillRoot {
                         path: config_folder.join(SKILLS_DIR_NAME),
@@ -349,6 +349,7 @@ fn skill_roots_from_layer_stack_inner(
                 });
             }
             ConfigLayerSource::Mdm { .. }
+            | ConfigLayerSource::ProjectOverride { .. }
             | ConfigLayerSource::SessionFlags
             | ConfigLayerSource::LegacyManagedConfigTomlFromFile { .. }
             | ConfigLayerSource::LegacyManagedConfigTomlFromMdm => {}
