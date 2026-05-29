@@ -137,9 +137,7 @@ async fn start_review_conversation(
         session.clone_session(),
         ctx.clone(),
         cancellation_token,
-        SubAgentSource::Review {
-            parent_thread_id: Some(session.conversation_id),
-        },
+        SubAgentSource::Review,
         /*final_output_json_schema*/ None,
         /*initial_history*/ None,
     )

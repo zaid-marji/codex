@@ -607,13 +607,13 @@ fn source_category(source: &str) -> &'static str {
         SessionSource::Internal(InternalSessionSource::MemoryConsolidation) => {
             "internal:memory_consolidation"
         }
-        SessionSource::SubAgent(SubAgentSource::Review { .. }) => "subagent:review",
-        SessionSource::SubAgent(SubAgentSource::Compact { .. }) => "subagent:compact",
+        SessionSource::SubAgent(SubAgentSource::Review) => "subagent:review",
+        SessionSource::SubAgent(SubAgentSource::Compact) => "subagent:compact",
         SessionSource::SubAgent(SubAgentSource::ThreadSpawn { .. }) => "subagent:thread_spawn",
-        SessionSource::SubAgent(SubAgentSource::MemoryConsolidation { .. }) => {
+        SessionSource::SubAgent(SubAgentSource::MemoryConsolidation) => {
             "subagent:memory_consolidation"
         }
-        SessionSource::SubAgent(SubAgentSource::Other { .. }) => "subagent:other",
+        SessionSource::SubAgent(SubAgentSource::Other(_)) => "subagent:other",
         SessionSource::Unknown => "unknown",
     }
 }

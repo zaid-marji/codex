@@ -72,6 +72,8 @@ pub struct CreateThreadParams {
     pub thread_id: ThreadId,
     /// Source thread id when this thread is created as a fork.
     pub forked_from_id: Option<ThreadId>,
+    /// Immediate control/spawn parent thread id when this thread is a subagent child.
+    pub parent_thread_id: Option<ThreadId>,
     /// Runtime source for the thread.
     pub source: SessionSource,
     /// Optional analytics source classification for this thread.
@@ -362,6 +364,8 @@ pub struct StoredThread {
     pub rollout_path: Option<PathBuf>,
     /// Source thread id when this thread was forked from another thread.
     pub forked_from_id: Option<ThreadId>,
+    /// Immediate control/spawn parent thread id when this thread is a subagent child.
+    pub parent_thread_id: Option<ThreadId>,
     /// Best available user-facing preview, usually the first user message.
     pub preview: String,
     /// Optional user-facing thread name/title.

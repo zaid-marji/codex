@@ -261,6 +261,7 @@ impl TurnMetadataState {
         session_id: String,
         thread_id: String,
         forked_from_thread_id: Option<ThreadId>,
+        parent_thread_id: Option<ThreadId>,
         session_source: &SessionSource,
         thread_source: Option<ThreadSource>,
         turn_id: String,
@@ -278,7 +279,6 @@ impl TurnMetadataState {
             )
             .to_string(),
         );
-        let parent_thread_id = session_source.parent_thread_id();
         let subagent_kind = match session_source {
             SessionSource::SubAgent(subagent_source) => Some(subagent_source.kind().to_string()),
             SessionSource::Cli

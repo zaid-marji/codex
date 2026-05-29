@@ -207,11 +207,11 @@ async fn run_agent_job_loop(
                     .spawn_agent_with_metadata(
                         options.spawn_config.clone(),
                         items.into(),
-                        Some(SessionSource::SubAgent(SubAgentSource::Other {
-                            label: format!("agent_job:{job_id}"),
-                            parent_thread_id: Some(session.conversation_id),
-                        })),
+                        Some(SessionSource::SubAgent(SubAgentSource::Other(format!(
+                            "agent_job:{job_id}"
+                        )))),
                         SpawnAgentOptions {
+                            parent_thread_id: Some(session.conversation_id),
                             environments: Some(turn.environments.to_selections()),
                             ..Default::default()
                         },

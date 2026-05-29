@@ -104,8 +104,8 @@ impl From<InternalSessionSource> for CoreInternalSessionSource {
 impl From<CoreSubAgentSource> for SubAgentSource {
     fn from(value: CoreSubAgentSource) -> Self {
         match value {
-            CoreSubAgentSource::Review { .. } => SubAgentSource::Review,
-            CoreSubAgentSource::Compact { .. } => SubAgentSource::Compact,
+            CoreSubAgentSource::Review => SubAgentSource::Review,
+            CoreSubAgentSource::Compact => SubAgentSource::Compact,
             CoreSubAgentSource::ThreadSpawn {
                 parent_thread_id,
                 depth,
@@ -119,8 +119,8 @@ impl From<CoreSubAgentSource> for SubAgentSource {
                 agent_nickname,
                 agent_role,
             },
-            CoreSubAgentSource::MemoryConsolidation { .. } => SubAgentSource::MemoryConsolidation,
-            CoreSubAgentSource::Other { label, .. } => SubAgentSource::Other(label),
+            CoreSubAgentSource::MemoryConsolidation => SubAgentSource::MemoryConsolidation,
+            CoreSubAgentSource::Other(label) => SubAgentSource::Other(label),
         }
     }
 }
@@ -128,12 +128,8 @@ impl From<CoreSubAgentSource> for SubAgentSource {
 impl From<SubAgentSource> for CoreSubAgentSource {
     fn from(value: SubAgentSource) -> Self {
         match value {
-            SubAgentSource::Review => CoreSubAgentSource::Review {
-                parent_thread_id: None,
-            },
-            SubAgentSource::Compact => CoreSubAgentSource::Compact {
-                parent_thread_id: None,
-            },
+            SubAgentSource::Review => CoreSubAgentSource::Review,
+            SubAgentSource::Compact => CoreSubAgentSource::Compact,
             SubAgentSource::ThreadSpawn {
                 parent_thread_id,
                 depth,
@@ -147,13 +143,8 @@ impl From<SubAgentSource> for CoreSubAgentSource {
                 agent_nickname,
                 agent_role,
             },
-            SubAgentSource::MemoryConsolidation => CoreSubAgentSource::MemoryConsolidation {
-                parent_thread_id: None,
-            },
-            SubAgentSource::Other(label) => CoreSubAgentSource::Other {
-                label,
-                parent_thread_id: None,
-            },
+            SubAgentSource::MemoryConsolidation => CoreSubAgentSource::MemoryConsolidation,
+            SubAgentSource::Other(label) => CoreSubAgentSource::Other(label),
         }
     }
 }

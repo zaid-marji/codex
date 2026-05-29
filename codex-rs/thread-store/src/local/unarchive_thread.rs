@@ -3,6 +3,7 @@ use codex_rollout::read_thread_item_from_rollout;
 use codex_rollout::rollout_date_parts;
 
 use super::LocalThreadStore;
+use super::helpers::fill_parent_thread_id_from_session_meta;
 use super::helpers::matching_rollout_file_name;
 use super::helpers::scoped_rollout_path;
 use super::helpers::stored_thread_from_rollout_item;
@@ -87,7 +88,7 @@ pub(super) async fn unarchive_thread(
                 restored_path.display()
             ),
         })?;
-    stored_thread_from_rollout_item(
+    let mut thread = stored_thread_from_rollout_item(
         item,
         /*archived*/ false,
         store.config.default_model_provider_id.as_str(),
@@ -97,7 +98,9 @@ pub(super) async fn unarchive_thread(
             "failed to read unarchived thread id from {}",
             restored_path.display()
         ),
-    })
+    })?;
+    fill_parent_thread_id_from_session_meta(&mut thread).await;
+    Ok(thread)
 }
 
 #[cfg(test)]

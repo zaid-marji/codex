@@ -140,6 +140,10 @@ async fn review_op_emits_lifecycle_and_review_output() {
         turn_metadata["forked_from_thread_id"].as_str(),
         Some(parent_thread_id.as_str())
     );
+    assert_eq!(
+        turn_metadata["parent_thread_id"].as_str(),
+        Some(parent_thread_id.as_str())
+    );
 
     // Also verify that a user message with the header and a formatted finding
     // was recorded back in the parent session's rollout.

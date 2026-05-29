@@ -15,6 +15,7 @@ use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::protocol::SessionSource;
 use codex_rollout::ARCHIVED_SESSIONS_SUBDIR;
 use codex_rollout::ThreadItem;
+use codex_rollout::read_session_meta_line;
 use codex_state::ThreadMetadata;
 
 use crate::StoredThread;
@@ -120,6 +121,7 @@ pub(super) fn stored_thread_from_rollout_item(
         thread_id,
         rollout_path: Some(item.path),
         forked_from_id: None,
+        parent_thread_id: item.parent_thread_id,
         preview,
         name: None,
         model_provider: item
@@ -145,6 +147,26 @@ pub(super) fn stored_thread_from_rollout_item(
         first_user_message: item.first_user_message,
         history: None,
     })
+}
+
+pub(super) async fn fill_parent_thread_id_from_session_meta(thread: &mut StoredThread) {
+    if thread.parent_thread_id.is_some() {
+        return;
+    }
+    if let Some(parent_thread_id) = thread.source.thread_spawn_parent_thread_id() {
+        thread.parent_thread_id = Some(parent_thread_id);
+        return;
+    }
+    if !matches!(&thread.source, SessionSource::SubAgent(_)) {
+        return;
+    }
+    let Some(rollout_path) = thread.rollout_path.as_ref() else {
+        return;
+    };
+    let Ok(meta_line) = read_session_meta_line(rollout_path.as_path()).await else {
+        return;
+    };
+    thread.parent_thread_id = meta_line.meta.effective_parent_thread_id();
 }
 
 pub(super) fn distinct_thread_metadata_title(metadata: &ThreadMetadata) -> Option<String> {

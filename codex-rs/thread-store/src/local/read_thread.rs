@@ -229,6 +229,7 @@ async fn read_thread_from_rollout_path(
     })?;
     if let Ok(meta_line) = read_session_meta_line(path.as_path()).await {
         thread.forked_from_id = meta_line.meta.forked_from_id;
+        thread.parent_thread_id = meta_line.meta.effective_parent_thread_id();
         if let Some(model_provider) = meta_line
             .meta
             .model_provider
@@ -281,6 +282,9 @@ async fn stored_thread_from_sqlite_metadata(
         .ok()
         .map(|meta_line| meta_line.meta);
     let forked_from_id = session_meta.as_ref().and_then(|meta| meta.forked_from_id);
+    let parent_thread_id = session_meta
+        .as_ref()
+        .and_then(codex_protocol::protocol::SessionMeta::effective_parent_thread_id);
     let preview = metadata
         .preview
         .clone()
@@ -290,6 +294,7 @@ async fn stored_thread_from_sqlite_metadata(
         thread_id: metadata.id,
         rollout_path: Some(metadata.rollout_path),
         forked_from_id,
+        parent_thread_id,
         preview,
         name,
         model_provider: if metadata.model_provider.is_empty() {
@@ -356,6 +361,7 @@ fn stored_thread_from_meta_line(
         thread_id: meta_line.meta.id,
         rollout_path: Some(path),
         forked_from_id: meta_line.meta.forked_from_id,
+        parent_thread_id: meta_line.meta.effective_parent_thread_id(),
         preview: String::new(),
         name: None,
         model_provider: meta_line

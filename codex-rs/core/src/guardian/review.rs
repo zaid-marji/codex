@@ -156,7 +156,7 @@ pub(crate) fn is_guardian_reviewer_source(
 ) -> bool {
     matches!(
         session_source,
-        codex_protocol::protocol::SessionSource::SubAgent(SubAgentSource::Other { label, .. })
+        codex_protocol::protocol::SessionSource::SubAgent(SubAgentSource::Other(label))
             if label == GUARDIAN_REVIEWER_NAME
     )
 }

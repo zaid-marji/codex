@@ -460,9 +460,7 @@ async fn host_context_gates_goal_and_agent_job_tools() {
     let review_thread = probe(|turn| {
         set_feature(turn, Feature::Goals, /*enabled*/ true);
         turn.goal_tools_supported = true;
-        turn.session_source = SessionSource::SubAgent(SubAgentSource::Review {
-            parent_thread_id: None,
-        });
+        turn.session_source = SessionSource::SubAgent(SubAgentSource::Review);
     })
     .await;
     review_thread.assert_visible_lacks(&["get_goal", "create_goal", "update_goal"]);
@@ -476,10 +474,8 @@ async fn host_context_gates_goal_and_agent_job_tools() {
 
     let worker_agent_job = probe(|turn| {
         set_feature(turn, Feature::SpawnCsv, /*enabled*/ true);
-        turn.session_source = SessionSource::SubAgent(SubAgentSource::Other {
-            label: "agent_job:42".to_string(),
-            parent_thread_id: None,
-        });
+        turn.session_source =
+            SessionSource::SubAgent(SubAgentSource::Other("agent_job:42".to_string()));
     })
     .await;
     worker_agent_job.assert_visible_contains(&["spawn_agents_on_csv", "report_agent_job_result"]);

@@ -267,9 +267,10 @@ impl ThreadMetadataState {
         session_id: String,
         session_source: &SessionSource,
         thread_source: Option<ThreadSource>,
+        parent_thread_id: Option<String>,
         initialization_mode: ThreadInitializationMode,
     ) -> Self {
-        let (subagent_source, parent_thread_id) = match session_source {
+        let (subagent_source, source_parent_thread_id) = match session_source {
             SessionSource::SubAgent(subagent_source) => (
                 Some(subagent_source_name(subagent_source)),
                 subagent_parent_thread_id(subagent_source),
@@ -287,7 +288,7 @@ impl ThreadMetadataState {
             thread_source,
             initialization_mode,
             subagent_source,
-            parent_thread_id,
+            parent_thread_id: parent_thread_id.or(source_parent_thread_id),
         }
     }
 }
@@ -1238,6 +1239,7 @@ impl AnalyticsReducer {
         let session_source: SessionSource = thread.source.into();
         let session_id = thread.session_id;
         let thread_id = thread.id;
+        let parent_thread_id = thread.parent_thread_id;
         let Some(connection_state) = self.connections.get(&connection_id) else {
             return;
         };
@@ -1245,6 +1247,7 @@ impl AnalyticsReducer {
             session_id.clone(),
             &session_source,
             thread.thread_source.map(Into::into),
+            parent_thread_id,
             initialization_mode,
         );
         self.threads.insert(

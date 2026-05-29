@@ -61,18 +61,11 @@ fn test_absolute_path() -> AbsolutePathBuf {
 
 #[test]
 fn subagent_session_source_preserves_legacy_v2_wire_shape() {
-    let parent_thread_id =
-        codex_protocol::ThreadId::from_string("11111111-1111-4111-8111-111111111111")
-            .expect("valid thread id");
     let review_source =
-        SessionSource::from(CoreSessionSource::SubAgent(CoreSubAgentSource::Review {
-            parent_thread_id: Some(parent_thread_id),
-        }));
-    let guardian_source =
-        SessionSource::from(CoreSessionSource::SubAgent(CoreSubAgentSource::Other {
-            label: "guardian".to_string(),
-            parent_thread_id: Some(parent_thread_id),
-        }));
+        SessionSource::from(CoreSessionSource::SubAgent(CoreSubAgentSource::Review));
+    let guardian_source = SessionSource::from(CoreSessionSource::SubAgent(
+        CoreSubAgentSource::Other("guardian".to_string()),
+    ));
 
     assert_eq!(
         serde_json::to_value(&review_source).expect("serialize review source"),
@@ -84,10 +77,7 @@ fn subagent_session_source_preserves_legacy_v2_wire_shape() {
     );
     assert_eq!(
         CoreSessionSource::from(guardian_source),
-        CoreSessionSource::SubAgent(CoreSubAgentSource::Other {
-            label: "guardian".to_string(),
-            parent_thread_id: None,
-        })
+        CoreSessionSource::SubAgent(CoreSubAgentSource::Other("guardian".to_string()))
     );
 }
 
@@ -3614,6 +3604,7 @@ fn thread_lifecycle_responses_default_missing_optional_fields() {
     let fork: ThreadForkResponse = serde_json::from_value(response).expect("thread/fork response");
 
     assert_eq!(start.instruction_sources, Vec::<AbsolutePathBuf>::new());
+    assert_eq!(start.thread.parent_thread_id, None);
     assert_eq!(resume.instruction_sources, Vec::<AbsolutePathBuf>::new());
     assert_eq!(fork.instruction_sources, Vec::<AbsolutePathBuf>::new());
     assert_eq!(start.active_permission_profile, None);

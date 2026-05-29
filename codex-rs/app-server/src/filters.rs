@@ -60,13 +60,13 @@ pub(crate) fn source_kind_matches(source: &CoreSessionSource, filter: &[ThreadSo
         ThreadSourceKind::SubAgentReview => {
             matches!(
                 source,
-                CoreSessionSource::SubAgent(CoreSubAgentSource::Review { .. })
+                CoreSessionSource::SubAgent(CoreSubAgentSource::Review)
             )
         }
         ThreadSourceKind::SubAgentCompact => {
             matches!(
                 source,
-                CoreSessionSource::SubAgent(CoreSubAgentSource::Compact { .. })
+                CoreSessionSource::SubAgent(CoreSubAgentSource::Compact)
             )
         }
         ThreadSourceKind::SubAgentThreadSpawn => matches!(
@@ -75,7 +75,7 @@ pub(crate) fn source_kind_matches(source: &CoreSessionSource, filter: &[ThreadSo
         ),
         ThreadSourceKind::SubAgentOther => matches!(
             source,
-            CoreSessionSource::SubAgent(CoreSubAgentSource::Other { .. })
+            CoreSessionSource::SubAgent(CoreSubAgentSource::Other(_))
         ),
         ThreadSourceKind::Unknown => matches!(source, CoreSessionSource::Unknown),
     })
@@ -129,9 +129,7 @@ mod tests {
     fn source_kind_matches_distinguishes_subagent_variants() {
         let parent_thread_id =
             ThreadId::from_string(&Uuid::new_v4().to_string()).expect("valid thread id");
-        let review = CoreSessionSource::SubAgent(CoreSubAgentSource::Review {
-            parent_thread_id: None,
-        });
+        let review = CoreSessionSource::SubAgent(CoreSubAgentSource::Review);
         let spawn = CoreSessionSource::SubAgent(CoreSubAgentSource::ThreadSpawn {
             parent_thread_id,
             depth: 1,

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use app_test_support::McpProcess;
+use app_test_support::create_fake_parented_rollout_with_source;
 use app_test_support::create_fake_rollout;
-use app_test_support::create_fake_rollout_with_source;
 use app_test_support::to_response;
 use codex_app_server_protocol::JSONRPCResponse;
 use codex_app_server_protocol::RequestId;
@@ -9,6 +9,8 @@ use codex_app_server_protocol::ReviewDelivery;
 use codex_app_server_protocol::ReviewStartParams;
 use codex_app_server_protocol::ReviewStartResponse;
 use codex_app_server_protocol::ReviewTarget;
+use codex_app_server_protocol::SessionSource as ApiSessionSource;
+use codex_app_server_protocol::SubAgentSource as ApiSubAgentSource;
 use codex_app_server_protocol::ThreadForkParams;
 use codex_app_server_protocol::ThreadForkResponse;
 use codex_app_server_protocol::ThreadResumeParams;
@@ -320,17 +322,15 @@ async fn turn_start_sends_other_subagent_lineage_after_cold_thread_resume_v2() -
 
     let parent_thread_id = CoreThreadId::new();
     let parent_thread_id_str = parent_thread_id.to_string();
-    let subagent_thread_id = create_fake_rollout_with_source(
+    let subagent_thread_id = create_fake_parented_rollout_with_source(
         codex_home.path(),
         "2025-01-05T12-00-00",
         "2025-01-05T12:00:00Z",
         "Saved subagent message",
         Some("mock_provider"),
         /*git_info*/ None,
-        SessionSource::SubAgent(SubAgentSource::Other {
-            label: "guardian".to_string(),
-            parent_thread_id: Some(parent_thread_id),
-        }),
+        SessionSource::SubAgent(SubAgentSource::Other("guardian".to_string())),
+        parent_thread_id,
     )?;
 
     let mut mcp = McpProcess::new(codex_home.path()).await?;
@@ -349,6 +349,11 @@ async fn turn_start_sends_other_subagent_lineage_after_cold_thread_resume_v2() -
     .await??;
     let ThreadResumeResponse { thread, .. } = to_response::<ThreadResumeResponse>(resume_resp)?;
     assert_eq!(thread.id, subagent_thread_id);
+    assert_eq!(thread.parent_thread_id, Some(parent_thread_id_str.clone()));
+    assert_eq!(
+        thread.source,
+        ApiSessionSource::SubAgent(ApiSubAgentSource::Other("guardian".to_string()))
+    );
 
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {

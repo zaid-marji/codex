@@ -9,6 +9,7 @@ use codex_rollout::parse_cursor;
 
 use super::LocalThreadStore;
 use super::helpers::distinct_thread_metadata_title;
+use super::helpers::fill_parent_thread_id_from_session_meta;
 use super::helpers::set_thread_name_from_title;
 use super::helpers::stored_thread_from_rollout_item;
 use crate::ListThreadsParams;
@@ -74,6 +75,9 @@ pub(super) async fn list_threads(
             )
         })
         .collect::<Vec<_>>();
+    for thread in &mut items {
+        fill_parent_thread_id_from_session_meta(thread).await;
+    }
 
     let thread_ids = items
         .iter()

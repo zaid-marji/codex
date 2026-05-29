@@ -134,6 +134,10 @@ async fn responses_api_parent_and_subagent_requests_include_identity_headers() -
         child_turn_metadata["forked_from_thread_id"].as_str(),
         Some(parent_thread_id)
     );
+    assert_eq!(
+        child_turn_metadata["parent_thread_id"].as_str(),
+        Some(parent_thread_id)
+    );
 
     Ok(())
 }

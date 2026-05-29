@@ -1145,6 +1145,7 @@ fn session_configured_from_thread_response(
         session_id,
         thread_id,
         forked_from_id: None,
+        parent_thread_id: None,
         thread_source,
         thread_name,
         model,

@@ -54,6 +54,7 @@ pub(crate) enum SpawnAgentForkMode {
 pub(crate) struct SpawnAgentOptions {
     pub(crate) fork_parent_spawn_call_id: Option<String>,
     pub(crate) fork_mode: Option<SpawnAgentForkMode>,
+    pub(crate) parent_thread_id: Option<ThreadId>,
     pub(crate) environments: Option<Vec<TurnEnvironmentSelection>>,
 }
 
@@ -247,6 +248,11 @@ impl AgentControl {
             other => (other, AgentMetadata::default()),
         };
         let notification_source = session_source.clone();
+        let parent_thread_id = options.parent_thread_id.or_else(|| {
+            session_source
+                .as_ref()
+                .and_then(SessionSource::thread_spawn_parent_thread_id)
+        });
 
         // The same `AgentControl` is sent to spawn the thread.
         let new_thread = match (session_source, options.fork_mode.as_ref()) {
@@ -266,6 +272,7 @@ impl AgentControl {
                     config.clone(),
                     self.clone(),
                     session_source,
+                    parent_thread_id,
                     /*forked_from_thread_id*/ None,
                     /*thread_source*/ Some(ThreadSource::Subagent),
                     /*persist_extended_history*/ false,
@@ -308,6 +315,7 @@ impl AgentControl {
                 }
             };
             let thread_config = new_thread.thread.codex.thread_config_snapshot().await;
+            let parent_thread_id = thread_config.parent_thread_id;
             emit_subagent_session_started(
                 &new_thread
                     .thread
@@ -318,7 +326,7 @@ impl AgentControl {
                 client_metadata,
                 new_thread.thread.codex.session.session_id(),
                 new_thread.thread_id,
-                /*parent_thread_id*/ None,
+                parent_thread_id,
                 thread_config,
                 subagent_source.clone(),
             );
@@ -489,6 +497,7 @@ impl AgentControl {
                 self.clone(),
                 session_source,
                 /*thread_source*/ Some(ThreadSource::Subagent),
+                /*parent_thread_id*/ Some(parent_thread_id),
                 /*forked_from_thread_id*/ Some(parent_thread_id),
                 /*persist_extended_history*/ false,
                 inherited_shell_snapshot,
@@ -637,6 +646,7 @@ impl AgentControl {
             .history
             .ok_or_else(|| CodexErr::ThreadNotFound(thread_id))?
             .items;
+        let parent_thread_id = stored_thread.parent_thread_id;
 
         let resumed_thread = state
             .resume_thread_with_history_with_source(ResumeThreadWithHistoryOptions {
@@ -648,6 +658,7 @@ impl AgentControl {
                 }),
                 agent_control: self.clone(),
                 session_source,
+                parent_thread_id,
                 inherited_shell_snapshot,
                 inherited_exec_policy,
             })

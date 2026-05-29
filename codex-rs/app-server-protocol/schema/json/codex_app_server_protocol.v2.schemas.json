@@ -13300,6 +13300,14 @@
             "null"
           ]
         },
+        "parentThreadId": {
+          "default": null,
+          "description": "Immediate control/spawn parent thread id when this thread is a subagent child.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "path": {
           "description": "[UNSTABLE] Path to the thread on disk.",
           "type": [

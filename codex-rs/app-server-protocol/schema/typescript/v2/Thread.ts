@@ -18,6 +18,10 @@ sessionId: string,
  */
 forkedFromId: string | null,
 /**
+ * Immediate control/spawn parent thread id when this thread is a subagent child.
+ */
+parentThreadId: string | null,
+/**
  * Usually the first user message in the thread, if available.
  */
 preview: string,

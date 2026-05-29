@@ -165,6 +165,7 @@ fn sample_thread_with_metadata(
         id: thread_id.to_string(),
         session_id: format!("session-{thread_id}"),
         forked_from_id: None,
+        parent_thread_id: None,
         preview: "first prompt".to_string(),
         ephemeral,
         model_provider: "openai".to_string(),
@@ -2418,9 +2419,7 @@ fn subagent_thread_started_review_serializes_expected_shape() {
             client_version: "1.0.0".to_string(),
             model: "gpt-5".to_string(),
             ephemeral: false,
-            subagent_source: SubAgentSource::Review {
-                parent_thread_id: None,
-            },
+            subagent_source: SubAgentSource::Review,
             created_at: 123,
         },
     ));
@@ -2498,9 +2497,7 @@ fn subagent_thread_started_memory_consolidation_serializes_expected_shape() {
             client_version: "1.0.0".to_string(),
             model: "gpt-5".to_string(),
             ephemeral: false,
-            subagent_source: SubAgentSource::MemoryConsolidation {
-                parent_thread_id: None,
-            },
+            subagent_source: SubAgentSource::MemoryConsolidation,
             created_at: 125,
         },
     ));
@@ -2526,10 +2523,7 @@ fn subagent_thread_started_other_serializes_expected_shape() {
             client_version: "1.0.0".to_string(),
             model: "gpt-5".to_string(),
             ephemeral: false,
-            subagent_source: SubAgentSource::Other {
-                label: "guardian".to_string(),
-                parent_thread_id: None,
-            },
+            subagent_source: SubAgentSource::Other("guardian".to_string()),
             created_at: 126,
         },
     ));
@@ -2548,16 +2542,13 @@ fn subagent_thread_started_other_serializes_explicit_parent_thread_id() {
         SubAgentThreadStartedInput {
             session_id: "session-root".to_string(),
             thread_id: "thread-guardian".to_string(),
-            parent_thread_id: None,
+            parent_thread_id: Some(parent_thread_id.to_string()),
             product_client_id: "codex-tui".to_string(),
             client_name: "codex-tui".to_string(),
             client_version: "1.0.0".to_string(),
             model: "gpt-5".to_string(),
             ephemeral: false,
-            subagent_source: SubAgentSource::Other {
-                label: "guardian".to_string(),
-                parent_thread_id: Some(parent_thread_id),
-            },
+            subagent_source: SubAgentSource::Other("guardian".to_string()),
             created_at: 126,
         },
     ));
@@ -2587,9 +2578,7 @@ async fn subagent_thread_started_publishes_without_initialize() {
                     client_version: "1.0.0".to_string(),
                     model: "gpt-5".to_string(),
                     ephemeral: false,
-                    subagent_source: SubAgentSource::Review {
-                        parent_thread_id: None,
-                    },
+                    subagent_source: SubAgentSource::Review,
                     created_at: 127,
                 },
             )),
@@ -2733,9 +2722,7 @@ async fn subagent_tool_items_inherit_parent_connection_metadata() {
                     client_version: "1.0.0".to_string(),
                     model: "gpt-5".to_string(),
                     ephemeral: false,
-                    subagent_source: SubAgentSource::Review {
-                        parent_thread_id: None,
-                    },
+                    subagent_source: SubAgentSource::Review,
                     created_at: 128,
                 },
             )),
