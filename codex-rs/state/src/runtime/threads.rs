@@ -960,20 +960,7 @@ pub(super) fn extract_memory_mode(items: &[RolloutItem]) -> Option<String> {
 fn thread_spawn_parent_thread_id_from_source_str(source: &str) -> Option<ThreadId> {
     let parsed_source = serde_json::from_str(source)
         .or_else(|_| serde_json::from_value::<SessionSource>(Value::String(source.to_string())));
-    match parsed_source.ok()? {
-        SessionSource::SubAgent(codex_protocol::protocol::SubAgentSource::ThreadSpawn {
-            parent_thread_id,
-            ..
-        }) => Some(parent_thread_id),
-        SessionSource::Cli
-        | SessionSource::VSCode
-        | SessionSource::Exec
-        | SessionSource::Mcp
-        | SessionSource::Custom(_)
-        | SessionSource::Internal(_)
-        | SessionSource::SubAgent(_)
-        | SessionSource::Unknown => None,
-    }
+    parsed_source.ok()?.thread_spawn_parent_thread_id()
 }
 
 #[derive(Clone, Copy)]

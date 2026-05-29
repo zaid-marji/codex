@@ -11,7 +11,7 @@ use codex_rollout::search_rollout_paths;
 
 use super::LocalThreadStore;
 use super::helpers::distinct_thread_metadata_title;
-use super::helpers::fill_parent_thread_id_from_session_meta;
+use super::helpers::hydrate_parent_thread_id;
 use super::helpers::set_thread_name_from_title;
 use super::helpers::stored_thread_from_rollout_item;
 use super::list_threads::list_rollout_threads;
@@ -164,7 +164,7 @@ pub(super) async fn search_threads(
         })
         .collect::<Vec<_>>();
     for item in &mut items {
-        fill_parent_thread_id_from_session_meta(&mut item.thread).await;
+        hydrate_parent_thread_id(&mut item.thread).await;
     }
     set_thread_search_result_names(store, &mut items).await;
 

@@ -174,7 +174,6 @@ pub struct StartThreadOptions {
     pub config: Config,
     pub initial_history: InitialHistory,
     pub session_source: Option<SessionSource>,
-    pub parent_thread_id: Option<ThreadId>,
     pub thread_source: Option<ThreadSource>,
     pub dynamic_tools: Vec<codex_protocol::dynamic_tools::DynamicToolSpec>,
     pub persist_extended_history: bool,
@@ -568,7 +567,6 @@ impl ThreadManager {
             config,
             initial_history: InitialHistory::New,
             session_source: None,
-            parent_thread_id: None,
             thread_source: None,
             dynamic_tools,
             persist_extended_history,
@@ -597,10 +595,6 @@ impl ThreadManager {
             .get_resumed_session_sources()
             .unwrap_or_else(|| (self.state.session_source.clone(), None));
         let session_source = options.session_source.unwrap_or(resumed_session_source);
-        let parent_thread_id = options
-            .parent_thread_id
-            .or_else(|| options.initial_history.get_resumed_parent_thread_id())
-            .or_else(|| session_source.thread_spawn_parent_thread_id());
         let thread_source = options.thread_source.or(resumed_thread_source);
         Box::pin(self.state.spawn_thread_with_source(
             options.config,
@@ -608,7 +602,7 @@ impl ThreadManager {
             Arc::clone(&self.state.auth_manager),
             self.agent_control(),
             session_source,
-            parent_thread_id,
+            /*parent_thread_id*/ None,
             forked_from_thread_id,
             thread_source,
             options.dynamic_tools,

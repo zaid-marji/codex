@@ -750,7 +750,6 @@ async fn subagent_stop_replaces_stop_and_skips_internal_subagents() -> Result<()
             config: test.config.clone(),
             initial_history: InitialHistory::New,
             session_source: Some(SessionSource::SubAgent(SubAgentSource::Review)),
-            parent_thread_id: None,
             thread_source: None,
             dynamic_tools: Vec::new(),
             persist_extended_history: false,

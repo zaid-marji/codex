@@ -149,7 +149,7 @@ pub(super) fn stored_thread_from_rollout_item(
     })
 }
 
-pub(super) async fn fill_parent_thread_id_from_session_meta(thread: &mut StoredThread) {
+pub(super) async fn hydrate_parent_thread_id(thread: &mut StoredThread) {
     if thread.parent_thread_id.is_some() {
         return;
     }

@@ -3,7 +3,7 @@ use codex_rollout::read_thread_item_from_rollout;
 use codex_rollout::rollout_date_parts;
 
 use super::LocalThreadStore;
-use super::helpers::fill_parent_thread_id_from_session_meta;
+use super::helpers::hydrate_parent_thread_id;
 use super::helpers::matching_rollout_file_name;
 use super::helpers::scoped_rollout_path;
 use super::helpers::stored_thread_from_rollout_item;
@@ -99,7 +99,7 @@ pub(super) async fn unarchive_thread(
             restored_path.display()
         ),
     })?;
-    fill_parent_thread_id_from_session_meta(&mut thread).await;
+    hydrate_parent_thread_id(&mut thread).await;
     Ok(thread)
 }
 

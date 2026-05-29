@@ -248,11 +248,6 @@ impl AgentControl {
             other => (other, AgentMetadata::default()),
         };
         let notification_source = session_source.clone();
-        let parent_thread_id = options.parent_thread_id.or_else(|| {
-            session_source
-                .as_ref()
-                .and_then(SessionSource::thread_spawn_parent_thread_id)
-        });
 
         // The same `AgentControl` is sent to spawn the thread.
         let new_thread = match (session_source, options.fork_mode.as_ref()) {
@@ -272,7 +267,7 @@ impl AgentControl {
                     config.clone(),
                     self.clone(),
                     session_source,
-                    parent_thread_id,
+                    options.parent_thread_id,
                     /*forked_from_thread_id*/ None,
                     /*thread_source*/ Some(ThreadSource::Subagent),
                     /*persist_extended_history*/ false,
@@ -853,7 +848,10 @@ impl AgentControl {
         current_thread_id: ThreadId,
         current_session_source: &SessionSource,
     ) {
-        if thread_spawn_parent_thread_id(current_session_source).is_none() {
+        if current_session_source
+            .thread_spawn_parent_thread_id()
+            .is_none()
+        {
             self.state.register_root_thread(current_thread_id);
         }
     }
@@ -1228,7 +1226,9 @@ impl AgentControl {
         child_thread_id: ThreadId,
         session_source: Option<&SessionSource>,
     ) {
-        let Some(parent_thread_id) = session_source.and_then(thread_spawn_parent_thread_id) else {
+        let Some(parent_thread_id) =
+            session_source.and_then(SessionSource::thread_spawn_parent_thread_id)
+        else {
             return;
         };
         let Some(state_db_ctx) = thread.state_db() else {
@@ -1270,22 +1270,6 @@ impl AgentControl {
         }
 
         Ok(descendants)
-    }
-}
-
-fn thread_spawn_parent_thread_id(session_source: &SessionSource) -> Option<ThreadId> {
-    match session_source {
-        SessionSource::SubAgent(SubAgentSource::ThreadSpawn {
-            parent_thread_id, ..
-        }) => Some(*parent_thread_id),
-        SessionSource::Cli
-        | SessionSource::VSCode
-        | SessionSource::Exec
-        | SessionSource::Mcp
-        | SessionSource::Custom(_)
-        | SessionSource::Internal(_)
-        | SessionSource::SubAgent(_)
-        | SessionSource::Unknown => None,
     }
 }
 
