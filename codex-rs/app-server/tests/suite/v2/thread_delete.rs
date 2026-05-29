@@ -1,3 +1,5 @@
+//! Integration coverage for the v2 `thread/delete` API.
+
 use anyhow::Result;
 use app_test_support::McpProcess;
 use app_test_support::create_fake_rollout;
