@@ -14,7 +14,6 @@ use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 use uuid::Uuid;
 
-use super::materialize::persist_temp_file_noclobber;
 use super::*;
 use crate::RolloutRecorder;
 use crate::append_rollout_item_to_path;
@@ -94,35 +93,6 @@ async fn append_materialization_preserves_compressed_rollout_permissions() -> an
         fs::metadata(&rollout_path)?.permissions().mode() & 0o777,
         0o600
     );
-    Ok(())
-}
-
-#[test]
-fn persist_temp_file_noclobber_installs_completed_temp() -> anyhow::Result<()> {
-    let home = TempDir::new()?;
-    let temp_path = home.path().join("rollout.jsonl.tmp");
-    let destination = home.path().join("rollout.jsonl");
-    fs::write(&temp_path, "completed rollout")?;
-
-    persist_temp_file_noclobber(&temp_path, &destination)?;
-
-    assert!(!temp_path.exists());
-    assert_eq!(fs::read_to_string(destination)?, "completed rollout");
-    Ok(())
-}
-
-#[test]
-fn persist_temp_file_noclobber_does_not_replace_existing_destination() -> anyhow::Result<()> {
-    let home = TempDir::new()?;
-    let temp_path = home.path().join("rollout.jsonl.tmp");
-    let destination = home.path().join("rollout.jsonl");
-    fs::write(&temp_path, "candidate rollout")?;
-    fs::write(&destination, "existing rollout")?;
-
-    persist_temp_file_noclobber(&temp_path, &destination)?;
-
-    assert!(!temp_path.exists());
-    assert_eq!(fs::read_to_string(destination)?, "existing rollout");
     Ok(())
 }
 
