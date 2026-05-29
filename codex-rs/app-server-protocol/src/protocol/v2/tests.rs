@@ -166,6 +166,7 @@ fn thread_resume_response_round_trips_initial_turns_page() {
             id: "thr_123".to_string(),
             session_id: "thr_123".to_string(),
             forked_from_id: None,
+            parent_thread_id: None,
             preview: String::new(),
             ephemeral: false,
             model_provider: "openai".to_string(),

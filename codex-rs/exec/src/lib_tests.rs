@@ -586,6 +586,26 @@ async fn session_configured_from_thread_response_preserves_thread_source() {
     );
 }
 
+#[tokio::test]
+async fn session_configured_from_thread_response_preserves_parent_thread_id() {
+    let codex_home = tempdir().expect("create temp codex home");
+    let cwd = tempdir().expect("create temp cwd");
+    let config = ConfigBuilder::default()
+        .codex_home(codex_home.path().to_path_buf())
+        .fallback_cwd(Some(cwd.path().to_path_buf()))
+        .build()
+        .await
+        .expect("build config");
+    let parent_thread_id = ThreadId::new();
+    let mut response = sample_thread_start_response();
+    response.thread.parent_thread_id = Some(parent_thread_id.to_string());
+
+    let event = session_configured_from_thread_start_response(&response, &config)
+        .expect("build bootstrap session configured event");
+
+    assert_eq!(event.parent_thread_id, Some(parent_thread_id));
+}
+
 fn sample_thread_start_response() -> ThreadStartResponse {
     ThreadStartResponse {
         thread: codex_app_server_protocol::Thread {

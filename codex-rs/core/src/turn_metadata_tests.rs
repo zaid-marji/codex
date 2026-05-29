@@ -480,6 +480,7 @@ fn turn_metadata_state_ignores_client_reserved_metadata_before_start() {
         "session-a".to_string(),
         "thread-a".to_string(),
         /*forked_from_thread_id*/ None,
+        /*parent_thread_id*/ None,
         &SessionSource::Exec,
         Some(ThreadSource::User),
         "turn-a".to_string(),
