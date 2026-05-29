@@ -105,6 +105,7 @@ use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequest;
 use codex_app_server_protocol::ServerResponse;
 use codex_app_server_protocol::SessionSource as AppServerSessionSource;
+use codex_app_server_protocol::SubAgentSource as AppServerSubAgentSource;
 use codex_app_server_protocol::Thread;
 use codex_app_server_protocol::ThreadArchiveParams;
 use codex_app_server_protocol::ThreadArchiveResponse;
@@ -1748,7 +1749,7 @@ async fn compaction_event_ingests_custom_fact() {
                     "thread-1",
                     /*ephemeral*/ false,
                     "gpt-5",
-                    AppServerSessionSource::SubAgent(SubAgentSource::ThreadSpawn {
+                    AppServerSessionSource::SubAgent(AppServerSubAgentSource::ThreadSpawn {
                         parent_thread_id,
                         depth: 1,
                         agent_path: None,

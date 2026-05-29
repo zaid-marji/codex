@@ -75,11 +75,7 @@ pub(crate) async fn run_codex_thread_interactive(
     let (tx_sub, rx_sub) = async_channel::bounded(SUBMISSION_CHANNEL_CAPACITY);
     let (tx_ops, rx_ops) = async_channel::bounded(SUBMISSION_CHANNEL_CAPACITY);
     let conversation_history = initial_history.unwrap_or(InitialHistory::New);
-    let forked_from_thread_id = match &conversation_history {
-        InitialHistory::Resumed(resumed) => Some(resumed.conversation_id),
-        InitialHistory::Forked(_) => conversation_history.forked_from_id(),
-        InitialHistory::New | InitialHistory::Cleared => None,
-    };
+    let forked_from_thread_id = conversation_history.forked_from_id();
     let CodexSpawnOk { codex, .. } = Box::pin(Codex::spawn(CodexSpawnArgs {
         config,
         installation_id: parent_session.installation_id.clone(),
@@ -91,7 +87,7 @@ pub(crate) async fn run_codex_thread_interactive(
         mcp_manager: Arc::clone(&parent_session.services.mcp_manager),
         extensions: Arc::clone(&parent_session.services.extensions),
         conversation_history,
-        session_source: SessionSource::SubAgent(subagent_source),
+        session_source: SessionSource::SubAgent(subagent_source.clone()),
         forked_from_thread_id,
         parent_thread_id: Some(parent_session.conversation_id),
         thread_source: Some(ThreadSource::Subagent),
