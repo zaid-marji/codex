@@ -129,12 +129,20 @@ fn remote_exec_server_preserves_websocket_error_in_stderr() -> Result<()> {
         .stderr(stderr_file);
 
     let mut child = cmd.spawn()?;
-    thread::sleep(Duration::from_secs(2));
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let stderr = loop {
+        let stderr = std::fs::read_to_string(&stderr_path)?;
+        if stderr.contains("failed to connect remote exec-server websocket")
+            || Instant::now() >= deadline
+        {
+            break stderr;
+        }
+        thread::sleep(Duration::from_millis(50));
+    };
     let _ = child.kill();
     child.wait()?;
     registry.finish()?;
 
-    let stderr = std::fs::read_to_string(stderr_path)?;
     assert!(
         stderr.contains("failed to connect remote exec-server websocket"),
         "{stderr}"
