@@ -194,6 +194,7 @@ impl TestRegistry {
 struct TestCollector {
     base_url: String,
     requests: mpsc::Receiver<Vec<CapturedRequest>>,
+    stop: mpsc::Sender<()>,
     server: thread::JoinHandle<()>,
 }
 
@@ -203,10 +204,10 @@ impl TestCollector {
         let addr = listener.local_addr()?;
         listener.set_nonblocking(true)?;
         let (tx, requests) = mpsc::channel();
+        let (stop, stop_rx) = mpsc::channel();
         let server = thread::spawn(move || {
-            let deadline = Instant::now() + Duration::from_secs(3);
             let mut captured = Vec::new();
-            while Instant::now() < deadline {
+            loop {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
                         if let Ok(request) = read_http_request(&mut stream) {
@@ -217,6 +218,9 @@ impl TestCollector {
                         );
                     }
                     Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                        if stop_rx.try_recv().is_ok() {
+                            break;
+                        }
                         thread::sleep(Duration::from_millis(10));
                     }
                     Err(_) => break,
@@ -227,11 +231,13 @@ impl TestCollector {
         Ok(Self {
             base_url: format!("http://{addr}"),
             requests,
+            stop,
             server,
         })
     }
 
     fn finish(self) -> Result<Vec<CapturedRequest>> {
+        let _ = self.stop.send(());
         self.server
             .join()
             .map_err(|_| anyhow::anyhow!("collector thread panicked"))?;
