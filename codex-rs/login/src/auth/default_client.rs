@@ -215,12 +215,26 @@ pub fn build_reqwest_client() -> reqwest::Client {
     })
 }
 
+/// `TCP_USER_TIMEOUT` value applied per-socket on Linux/Android/Fuchsia.
+///
+/// reqwest 0.12 defaults this to 30 s, which silently caps long unary requests (notably
+/// `POST /responses/compact`, see `COMPACT_REQUEST_TIMEOUT_IDLE_MULTIPLIER` in
+/// `codex-rs/core/src/client.rs`) below the application-level `.timeout()` budget. We
+/// raise it to match the longest reqwest `.timeout()` that any Codex caller sets, so the
+/// socket option never shadows the application timeout.
+#[cfg(any(target_os = "linux", target_os = "android", target_os = "fuchsia"))]
+const TCP_USER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1200);
+
 /// Tries to build the default reqwest client used for ordinary Codex HTTP traffic.
 ///
 /// Callers that need a structured CA-loading failure instead of the legacy logged fallback can use
 /// this method directly.
 pub fn try_build_reqwest_client() -> Result<reqwest::Client, BuildCustomCaTransportError> {
     let mut builder = reqwest::Client::builder().default_headers(default_headers());
+    #[cfg(any(target_os = "linux", target_os = "android", target_os = "fuchsia"))]
+    {
+        builder = builder.tcp_user_timeout(Some(TCP_USER_TIMEOUT));
+    }
     if is_sandboxed() {
         builder = builder.no_proxy();
     }
