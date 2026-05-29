@@ -5,6 +5,7 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 use tokio::time::sleep;
 use tokio_tungstenite::connect_async;
+use tracing::info;
 use tracing::warn;
 
 use codex_utils_rustls_provider::ensure_rustls_crypto_provider;
@@ -134,24 +135,159 @@ pub async fn run_remote_environment(
         EnvironmentRegistryClient::new(config.base_url.clone(), config.auth_provider.clone())?;
     let processor = ConnectionProcessor::new(runtime_paths);
     let mut backoff = Duration::from_secs(1);
+    let mut connection_attempt = 0_u32;
 
     loop {
-        let response = client.register_environment(&config.environment_id).await?;
+        let response = match client.register_environment(&config.environment_id).await {
+            Ok(response) => response,
+            Err(err) => {
+                warn!(
+                    environment_id = %config.environment_id,
+                    error = %err,
+                    "failed to register remote exec-server environment"
+                );
+                tracing::event!(
+                    target: "codex_otel.log_only",
+                    tracing::Level::WARN,
+                    event.name = "codex.exec_server.remote_environment_registration_failed",
+                    environment_id = %config.environment_id,
+                    error = %err,
+                    "failed to register remote exec-server environment"
+                );
+                tracing::event!(
+                    target: "codex_otel.trace_safe",
+                    tracing::Level::WARN,
+                    event.name = "codex.exec_server.remote_environment_registration_failed",
+                    environment_id = %config.environment_id,
+                    "failed to register remote exec-server environment"
+                );
+                return Err(err);
+            }
+        };
         eprintln!(
             "codex exec-server remote environment registered with environment_id {}",
             response.environment_id
         );
+        info!(
+            environment_id = %response.environment_id,
+            "codex exec-server remote environment registered"
+        );
+        tracing::event!(
+            target: "codex_otel.log_only",
+            tracing::Level::INFO,
+            event.name = "codex.exec_server.remote_environment_registered",
+            environment_id = %response.environment_id,
+            "codex exec-server remote environment registered"
+        );
+        tracing::event!(
+            target: "codex_otel.trace_safe",
+            tracing::Level::INFO,
+            event.name = "codex.exec_server.remote_environment_registered",
+            environment_id = %response.environment_id,
+            "codex exec-server remote environment registered"
+        );
 
         match connect_async(response.url.as_str()).await {
             Ok((websocket, _)) => {
+                connection_attempt += 1;
+                info!(
+                    environment_id = %response.environment_id,
+                    attempt = connection_attempt,
+                    "connected remote exec-server websocket"
+                );
+                tracing::event!(
+                    target: "codex_otel.log_only",
+                    tracing::Level::INFO,
+                    event.name = "codex.exec_server.remote_websocket_connected",
+                    environment_id = %response.environment_id,
+                    attempt = connection_attempt,
+                    "connected remote exec-server websocket"
+                );
+                tracing::event!(
+                    target: "codex_otel.trace_safe",
+                    tracing::Level::INFO,
+                    event.name = "codex.exec_server.remote_websocket_connected",
+                    environment_id = %response.environment_id,
+                    attempt = connection_attempt,
+                    "connected remote exec-server websocket"
+                );
                 backoff = Duration::from_secs(1);
                 run_multiplexed_environment(websocket, processor.clone()).await;
+                warn!(
+                    environment_id = %response.environment_id,
+                    attempt = connection_attempt,
+                    "remote exec-server websocket disconnected; retrying"
+                );
+                tracing::event!(
+                    target: "codex_otel.log_only",
+                    tracing::Level::WARN,
+                    event.name = "codex.exec_server.remote_websocket_disconnected",
+                    environment_id = %response.environment_id,
+                    attempt = connection_attempt,
+                    "remote exec-server websocket disconnected; retrying"
+                );
+                tracing::event!(
+                    target: "codex_otel.trace_safe",
+                    tracing::Level::WARN,
+                    event.name = "codex.exec_server.remote_websocket_disconnected",
+                    environment_id = %response.environment_id,
+                    attempt = connection_attempt,
+                    "remote exec-server websocket disconnected; retrying"
+                );
             }
             Err(err) => {
-                warn!("failed to connect remote exec-server websocket: {err}");
+                connection_attempt += 1;
+                warn!(
+                    environment_id = %response.environment_id,
+                    attempt = connection_attempt,
+                    error = %err,
+                    "failed to connect remote exec-server websocket"
+                );
+                tracing::event!(
+                    target: "codex_otel.log_only",
+                    tracing::Level::WARN,
+                    event.name = "codex.exec_server.remote_websocket_connect_failed",
+                    environment_id = %response.environment_id,
+                    attempt = connection_attempt,
+                    error = %err,
+                    "failed to connect remote exec-server websocket"
+                );
+                tracing::event!(
+                    target: "codex_otel.trace_safe",
+                    tracing::Level::WARN,
+                    event.name = "codex.exec_server.remote_websocket_connect_failed",
+                    environment_id = %response.environment_id,
+                    attempt = connection_attempt,
+                    "failed to connect remote exec-server websocket"
+                );
             }
         }
 
+        let backoff_ms = backoff.as_millis();
+        info!(
+            environment_id = %response.environment_id,
+            attempt = connection_attempt,
+            backoff_ms,
+            "retrying remote exec-server websocket"
+        );
+        tracing::event!(
+            target: "codex_otel.log_only",
+            tracing::Level::INFO,
+            event.name = "codex.exec_server.remote_websocket_retrying",
+            environment_id = %response.environment_id,
+            attempt = connection_attempt,
+            backoff_ms,
+            "retrying remote exec-server websocket"
+        );
+        tracing::event!(
+            target: "codex_otel.trace_safe",
+            tracing::Level::INFO,
+            event.name = "codex.exec_server.remote_websocket_retrying",
+            environment_id = %response.environment_id,
+            attempt = connection_attempt,
+            backoff_ms,
+            "retrying remote exec-server websocket"
+        );
         sleep(backoff).await;
         backoff = (backoff * 2).min(Duration::from_secs(30));
     }
