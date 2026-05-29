@@ -59,6 +59,7 @@ pub struct RemoteControlPairingStartResponse {
     pub pairing_code: String,
     pub manual_pairing_code: Option<String>,
     pub environment_id: String,
+    #[ts(type = "number")]
     pub expires_at: i64,
 }
 
