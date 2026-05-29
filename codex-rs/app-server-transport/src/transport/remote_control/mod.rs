@@ -60,7 +60,6 @@ pub struct RemoteControlHandle {
     status_tx: Arc<watch::Sender<RemoteControlStatusChangedNotification>>,
     state_db_available: bool,
     pairing: PairingClientState,
-    #[cfg(test)]
     pairing_refresh_tx: Arc<watch::Sender<u64>>,
     auth_change_rx: Arc<StdMutex<watch::Receiver<u64>>>,
 }
@@ -194,6 +193,15 @@ impl RemoteControlHandle {
                 manual_code: params.manual_code,
             })
             .await;
+        if pairing_response.as_ref().is_err_and(|err| {
+            matches!(
+                err.kind(),
+                io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied
+            )
+        }) && clear_pairing_client_if_current(&self.pairing, &pairing_client)
+        {
+            self.request_pairing_auth_refresh();
+        }
         if self.auth_change_revision() != auth_change_revision {
             return Err(Self::pairing_unavailable_error());
         }
@@ -232,7 +240,6 @@ impl RemoteControlHandle {
                 })
     }
 
-    #[cfg(test)]
     fn request_pairing_auth_refresh(&self) {
         self.pairing_refresh_tx
             .send_modify(|revision| *revision = revision.wrapping_add(1));
@@ -291,6 +298,25 @@ fn clear_pairing_client(pairing: &PairingClientState) {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
     pairing.generation.fetch_add(1, Ordering::Relaxed);
+}
+
+fn clear_pairing_client_if_current(
+    pairing: &PairingClientState,
+    expected_pairing_client: &RemoteControlPairingClient,
+) -> bool {
+    let mut pairing_client = pairing
+        .client
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if pairing_client
+        .as_ref()
+        .is_none_or(|pairing_client| !pairing_client.matches_pairing_auth(expected_pairing_client))
+    {
+        return false;
+    }
+    *pairing_client = None;
+    pairing.generation.fetch_add(1, Ordering::Relaxed);
+    true
 }
 
 pub async fn start_remote_control(
@@ -415,7 +441,6 @@ pub async fn start_remote_control(
             status_tx: Arc::new(status_tx),
             state_db_available,
             pairing,
-            #[cfg(test)]
             pairing_refresh_tx: Arc::new(pairing_refresh_tx),
             auth_change_rx,
         },
