@@ -1,0 +1,62 @@
+name: rust-ci-full targeted all23 temp
+
+on:
+  push:
+    branches:
+      - starr/targeted-all23-isolation-20260529
+
+jobs:
+  tests_linux_x64_remote:
+    name: Targeted all23 - ubuntu-24.04 - x86_64-unknown-linux-gnu (remote)
+    uses: ./.github/workflows/rust-ci-full-nextest-platform.yml
+    with:
+      runner: ubuntu-24.04
+      runner_group: codex-runners
+      runner_labels: codex-linux-x64
+      target: x86_64-unknown-linux-gnu
+      profile: ci-test
+      artifact_id: targeted-all23-linux-x64-remote
+      remote_env: true
+      use_sccache: true
+      nextest_filterset: >-
+        test(=suite::code_mode::code_mode_can_call_hidden_dynamic_tools) |
+        test(=suite::code_mode::code_mode_exec_explicit_max_above_default_preserves_output) |
+        test(=suite::code_mode::code_mode_exec_explicit_max_above_default_truncates_larger_output) |
+        test(=suite::code_mode::code_mode_exec_explicit_max_above_truncation_policy_preserves_output) |
+        test(=suite::code_mode::code_mode_exec_without_max_preserves_output_beyond_default) |
+        test(=suite::code_mode::code_mode_exec_without_max_preserves_output_beyond_truncation_policy) |
+        test(=suite::compact_remote_parity::remote_compaction_parity_v2_api_key_sends_service_tier_upgrade) |
+        test(=suite::rmcp_client::remote_stdio_env_var_source_does_not_copy_local_env) |
+        test(=suite::rmcp_client::stdio_image_responses_are_sanitized_for_text_only_model) |
+        test(=suite::rmcp_client::stdio_image_responses_preserve_original_detail_metadata) |
+        test(=suite::rmcp_client::stdio_image_responses_round_trip) |
+        test(=suite::rmcp_client::stdio_mcp_parallel_tool_calls_default_false_runs_serially) |
+        test(=suite::rmcp_client::stdio_mcp_parallel_tool_calls_opt_in_runs_concurrently) |
+        test(=suite::rmcp_client::stdio_mcp_read_only_tool_calls_run_concurrently_without_server_opt_in) |
+        test(=suite::rmcp_client::stdio_mcp_tool_call_includes_sandbox_state_meta) |
+        test(=suite::rmcp_client::stdio_server_propagates_explicit_local_env_var_source) |
+        test(=suite::rmcp_client::stdio_server_propagates_whitelisted_env_vars) |
+        test(=suite::rmcp_client::stdio_server_round_trip) |
+        test(=suite::rmcp_client::streamable_http_tool_call_round_trip) |
+        test(=suite::rmcp_client::streamable_http_with_oauth_round_trip) |
+        test(=suite::unified_exec::unified_exec_network_denial_emits_failed_background_end_event) |
+        test(=suite::unified_exec::unified_exec_short_lived_network_denial_emits_failed_end_event) |
+        test(=transport::remote_control::tests::remote_control_waits_for_account_id_before_enrolling)
+      partition_tests: false
+      require_single_test: false
+      expected_test_count: 23
+    secrets: inherit
+
+  results:
+    name: Targeted all23 results
+    needs: tests_linux_x64_remote
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Confirm targeted all23 passed
+        shell: bash
+        run: |
+          [[ '${{ needs.tests_linux_x64_remote.result }}' == 'success' ]] || {
+            echo 'selected targeted tests failed: ${{ needs.tests_linux_x64_remote.result }}'
+            exit 1
+          }
